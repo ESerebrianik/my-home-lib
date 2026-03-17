@@ -10,7 +10,7 @@ import { books as mockLibraryBooks } from "../data/books";
 import { borrowedBooks as mockBorrowedBooks } from "../data/borrowedBooks";
 import { lentBooks as mockLentBooks } from "../data/lentBooks";
 import { wishlistBooks as mockWishlistBooks } from "../data/wishlistBooks";
-import { fetchUsers } from "../api/books";
+import { fetchUsers, fetchBooksByUser } from "../api/books";
 
 export type User = {
   id: string;
@@ -163,13 +163,30 @@ const initialManualLentBooks: Book[] = normalizeBooks(
   "lent"
 );
 
+const mapApiBookToBook = (book: any): Book => ({
+  id: Number(book.book_id),
+  title: book.title,
+  author: book.author,
+  genre: book.genre || "Unknown",
+  year: Number(book.year) || new Date().getFullYear(),
+  cover:
+  book.cover_url ||
+  `https://covers.openlibrary.org/b/title/${encodeURIComponent(
+    book.title
+  )}-L.jpg` ||
+  "https://via.placeholder.com/150x220?text=No+Cover",
+  description: book.description || "",
+  ownerId: book.owner_id ? String(book.owner_id) : undefined,
+  status: book.availability_status || "available",
+});
+
 export function BooksProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>("");
 
-  const [books, setBooks] = useState<Book[]>(initialBooks);
+  const [books, setBooks] = useState<Book[]>([]);
   const [wishlistBooks, setWishlistBooks] =
-    useState<Book[]>(initialWishlistBooks);
+    useState<Book[]>([]);
   const [manualBorrowedBooks, setManualBorrowedBooks] = useState<Book[]>(
     initialManualBorrowedBooks
   );
@@ -200,6 +217,28 @@ export function BooksProvider({ children }: { children: ReactNode }) {
         console.error("FAILED TO FETCH USERS:", err);
       });
   }, []);
+
+  useEffect(() => {
+  if (!currentUserId) return;
+
+  fetchBooksByUser(currentUserId, "library")
+    .then((data) => {
+      console.log("LIBRARY BOOKS FROM API:", data);
+      setBooks(data.map(mapApiBookToBook));
+    })
+    .catch((err) => {
+      console.error("FAILED TO FETCH LIBRARY BOOKS:", err);
+    });
+
+  fetchBooksByUser(currentUserId, "wishlist")
+    .then((data) => {
+      console.log("WISHLIST BOOKS FROM API:", data);
+      setWishlistBooks(data.map(mapApiBookToBook));
+    })
+    .catch((err) => {
+      console.error("FAILED TO FETCH WISHLIST BOOKS:", err);
+    });
+}, [currentUserId]);
 
   const currentUser = users.find((user) => user.id === currentUserId);
 

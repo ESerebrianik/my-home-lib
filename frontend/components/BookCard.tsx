@@ -54,7 +54,7 @@ export default function BookCard({
     <>
       <Pressable style={styles.card} onPress={() => setModalVisible(true)}>
         {hasCover ? (
-          <Image source={{ uri: book.cover }} style={styles.image} />
+          <Image source={{ uri: book.cover }} style={styles.image} resizeMode="cover" />
         ) : (
           <View style={[styles.image, styles.fallbackCover]}>
             <Text style={styles.fallbackTitle} numberOfLines={4}>

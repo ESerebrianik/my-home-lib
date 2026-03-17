@@ -6,7 +6,7 @@ exports.selectBooksByUserId = (user_id, collection_type = "library") => {
     FROM books
     WHERE owner_id = $1
       AND collection_type = $2
-    ORDER BY created_at DESC;
+    ORDER BY book_id;
   `;
 
   return db.query(queryStr, [user_id, collection_type]).then(({ rows }) => rows);

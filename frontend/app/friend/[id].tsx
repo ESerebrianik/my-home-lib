@@ -12,7 +12,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BookList from "../../components/BookList";
-import UserSwitcher from "../../components/UserSwitcher";
 import { useBooks } from "../../context/BooksContext";
 import type { Book } from "../../context/BooksContext";
 
@@ -75,8 +74,6 @@ export default function FriendLibraryScreen() {
           <Ionicons name="menu" size={30} color="#111" />
         </TouchableOpacity>
       </View>
-
-      <UserSwitcher />
 
       <View style={styles.searchWrapper}>
         <Ionicons name="search-outline" size={18} color="#7A7A7A" />

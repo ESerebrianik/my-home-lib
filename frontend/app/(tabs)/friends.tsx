@@ -7,7 +7,6 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { FriendList } from "../../components/FriendList";
-import UserSwitcher from "../../components/UserSwitcher";
 import { useBooks } from "../../context/BooksContext";
 
 export default function FriendsScreen() {
@@ -59,8 +58,6 @@ export default function FriendsScreen() {
 
   return (
     <View style={styles.screen}>
-      <UserSwitcher />
-
       <View style={styles.searchWrapper}>
         <Ionicons name="search-outline" size={18} color="#7A7A7A" />
         <TextInput

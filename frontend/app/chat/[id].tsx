@@ -14,7 +14,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useBooks } from "../../context/BooksContext";
-import UserSwitcher from "../../components/UserSwitcher";
 
 export default function ChatDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -77,7 +76,7 @@ export default function ChatDetailsScreen() {
           <View style={styles.iconButton} />
         </View>
 
-        <UserSwitcher />
+     
 
         <FlatList
           ref={flatListRef}

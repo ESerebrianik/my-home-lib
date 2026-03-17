@@ -23,10 +23,10 @@ export default function CustomDrawerContent(props: any) {
         onPress={() => router.push("/(tabs)/wishlist")}
       />
 
-      <DrawerItem
+      {/* <DrawerItem
         label="Settings"
         onPress={() => router.push("/(tabs)/settings")}
-      />
+      /> */}
     </DrawerContentScrollView>
   );
 }

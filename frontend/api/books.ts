@@ -26,3 +26,20 @@ export const fetchBooksByUser = async (
   const data = await res.json();
   return data.books;
 };
+
+export const postBook = async (bookData: any) => {
+  const res = await fetch(`${API_URL}/books`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(bookData),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to post book: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.book;
+};

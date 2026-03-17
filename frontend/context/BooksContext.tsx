@@ -10,7 +10,7 @@ import { books as mockLibraryBooks } from "../data/books";
 import { borrowedBooks as mockBorrowedBooks } from "../data/borrowedBooks";
 import { lentBooks as mockLentBooks } from "../data/lentBooks";
 import { wishlistBooks as mockWishlistBooks } from "../data/wishlistBooks";
-import { fetchUsers, fetchBooksByUser } from "../api/books";
+import { fetchUsers, fetchBooksByUser, postBook } from "../api/books";
 
 export type User = {
   id: string;
@@ -21,7 +21,7 @@ export type User = {
 export type BookStatus = "available" | "pending" | "lent";
 
 export type Book = {
-  id: number;
+  id: string;
   title: string;
   author: string;
   genre: string;
@@ -43,7 +43,7 @@ export type LoanStatus =
 
 export type Loan = {
   id: string;
-  bookId: number;
+  bookId: string;
   ownerId: string;
   borrowerId: string;
   status: LoanStatus;
@@ -79,15 +79,15 @@ type BooksContextType = {
   borrowedBooks: Book[];
   lentBooks: Book[];
 
-  addBook: (collection: CollectionType, book: NewBook) => void;
-  deleteBook: (collection: CollectionType, id: number) => void;
+  addBook: (collection: CollectionType, book: NewBook) => Promise<void>;
+  deleteBook: (collection: CollectionType, id: string) => void;
 
-  requestBook: (params: { bookId: number; ownerId: string }) => void;
+  requestBook: (params: { bookId: string; ownerId: string }) => void;
   approveLoan: (loanId: string) => void;
   declineLoan: (loanId: string) => void;
   markReturned: (loanId: string) => void;
 
-  getBookById: (bookId?: number) => Book | undefined;
+  getBookById: (bookId?: string) => Book | undefined;
   getLoanById: (loanId?: string) => Loan | undefined;
   getMessagesForFriend: (friendId: string) => ChatMessage[];
 
@@ -164,7 +164,7 @@ const initialManualLentBooks: Book[] = normalizeBooks(
 );
 
 const mapApiBookToBook = (book: any): Book => ({
-  id: Number(book.book_id),
+  id: String(book.book_id),
   title: book.title,
   author: book.author,
   genre: book.genre || "Unknown",
@@ -289,34 +289,42 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const borrowedBooks = getBorrowedBooks();
   const lentBooks = getLentBooks();
 
-  const addBook = (collection: CollectionType, book: NewBook) => {
-    const newBook: Book = {
-      id: Date.now(),
-      ...book,
-      ownerId: collection === "borrowed" ? "u2" : currentUserId,
-      status:
-        collection === "library" || collection === "wishlist"
-          ? "available"
-          : "lent",
-    };
+  const addBook = async (collection: CollectionType, book: NewBook) => {
+  if (!currentUserId) return;
 
-    switch (collection) {
-      case "library":
-        setBooks((currentBooks) => [newBook, ...currentBooks]);
-        break;
-      case "wishlist":
-        setWishlistBooks((currentBooks) => [newBook, ...currentBooks]);
-        break;
-      case "borrowed":
-        setManualBorrowedBooks((currentBooks) => [newBook, ...currentBooks]);
-        break;
-      case "lent":
-        setManualLentBooks((currentBooks) => [newBook, ...currentBooks]);
-        break;
-    }
+  const payload = {
+    title: book.title,
+    author: book.author,
+    genre: book.genre,
+    year: book.year,
+    cover_url: book.cover || "",
+    description: book.description,
+    owner_id: currentUserId,
+    collection_type: collection,
+    availability_status:
+      collection === "library" || collection === "wishlist"
+        ? "available"
+        : "lent",
   };
 
-  const deleteBook = (collection: CollectionType, id: number) => {
+  try {
+    await postBook(payload);
+
+    if (collection === "library") {
+      const libraryData = await fetchBooksByUser(currentUserId, "library");
+      setBooks(libraryData.map(mapApiBookToBook));
+    }
+
+    if (collection === "wishlist") {
+      const wishlistData = await fetchBooksByUser(currentUserId, "wishlist");
+      setWishlistBooks(wishlistData.map(mapApiBookToBook));
+    }
+  } catch (err) {
+    console.error("FAILED TO ADD BOOK:", err);
+  }
+};
+
+  const deleteBook = (collection: CollectionType, id: string) => {
     switch (collection) {
       case "library":
         setBooks((currentBooks) =>
@@ -345,7 +353,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     bookId,
     ownerId,
   }: {
-    bookId: number;
+    bookId: string;
     ownerId: string;
   }) => {
     const book = books.find((b) => b.id === bookId);
@@ -507,7 +515,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     ]);
   };
 
-  const getBookById = (bookId?: number) =>
+  const getBookById = (bookId?: string) =>
     [...books, ...wishlistBooks, ...borrowedBooks, ...lentBooks].find(
       (book) => book.id === bookId
     );

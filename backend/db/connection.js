@@ -13,5 +13,5 @@ const config = {
       ? { rejectUnauthorized: false }
       : { rejectUnauthorized: false },
 };
-
+console.log(process.env.DATABASE_URL);
 module.exports = new Pool(config);

@@ -184,16 +184,17 @@ export default function AddBookScreen() {
     }
   };
 
-  const handleAddBook = () => {
-    if (!title.trim() || !author.trim()) {
-      Alert.alert(
-        "Missing information",
-        "Please enter at least a title and author."
-      );
-      return;
-    }
+  const handleAddBook = async () => {
+  if (!title.trim() || !author.trim()) {
+    Alert.alert(
+      "Missing information",
+      "Please enter at least a title and author."
+    );
+    return;
+  }
 
-    addBook(targetCollection, {
+  try {
+    await addBook(targetCollection, {
       title: title.trim(),
       author: author.trim(),
       genre: genre.trim() || "Unknown",
@@ -204,7 +205,11 @@ export default function AddBookScreen() {
 
     resetForm();
     router.back();
-  };
+  } catch (error) {
+    console.error("FAILED TO ADD BOOK:", error);
+    Alert.alert("Save failed", "Could not save the book right now.");
+  }
+};
 
   if (showCamera) {
     return (

@@ -21,12 +21,23 @@ exports.insertBook = ({
   cover_url,
   description,
   collection_type,
+  availability_status,
 }) => {
   const queryStr = `
     INSERT INTO books
-      (owner_id, title, author, genre, year, cover_url, description, collection_type)
+      (
+        owner_id,
+        title,
+        author,
+        genre,
+        year,
+        cover_url,
+        description,
+        collection_type,
+        availability_status
+      )
     VALUES
-      ($1, $2, $3, $4, $5, $6, $7, $8)
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING *;
   `;
 
@@ -39,6 +50,7 @@ exports.insertBook = ({
     cover_url || null,
     description || null,
     collection_type || "library",
+    availability_status || "available",
   ];
 
   return db.query(queryStr, values).then(({ rows }) => rows[0]);

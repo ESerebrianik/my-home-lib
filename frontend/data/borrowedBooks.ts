@@ -1,8 +1,8 @@
-import type { Book } from "../context/BooksContext";
+import type { Book } from "../types/books";
 
 export const borrowedBooks: Book[] = [
   {
-    id: 1,
+    id: '1',
     title: "The Hobbit",
     author: "J.R.R. Tolkien",
     genre: "Fantasy",

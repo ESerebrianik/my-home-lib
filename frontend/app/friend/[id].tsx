@@ -12,17 +12,22 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BookList from "../../components/BookList";
-import { useBooks } from "../../context/BooksContext";
-import type { Book } from "../../context/BooksContext";
+
+import { useUsers } from "../../context/UsersContext";
+import { useLoans } from "../../context/LoansContext";
+
+import type { Book } from "../../types/books";
 
 export default function FriendLibraryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [search, setSearch] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
 
-  const { users, getFriendAvailableBooks, requestBook } = useBooks();
+  const { users } = useUsers();
+  const { getFriendAvailableBooks, requestBook } = useLoans();
 
   const friend = users.find((item) => item.id === id);
+
   const books = getFriendAvailableBooks(id ?? "");
 
   const filteredBooks = useMemo(() => {

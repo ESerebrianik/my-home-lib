@@ -2,12 +2,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { DrawerToggleButton } from "@react-navigation/drawer";
 import { Tabs } from "expo-router";
 import { useBooks } from "../../context/BooksContext";
+import { useUsers } from "../../context/UsersContext";
 import UserAvatar from "../../components/UserAvatar";
 import { useState } from "react";
 import { View, Modal, Pressable, Text, StyleSheet } from "react-native";
 
 export default function TabLayout() {
-  const { users, currentUser, setCurrentUserId } = useBooks();
+  const { users, currentUser, setCurrentUserId } = useUsers();
   const [modalVisible, setModalVisible] = useState(false);
 
   console.log("USERS IN TAB LAYOUT:", users);

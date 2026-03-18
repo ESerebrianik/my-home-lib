@@ -26,6 +26,17 @@ export default function ISBNScanner({ onScanned, onCancel }: ISBNScannerProps) {
     );
   }
 
+  const handleScan = (data: string) => {
+    if (scanned) return;
+
+    setScanned(true);
+    const cleanISBN = data.replace(/[^0-9Xx]/g, "");
+    console.log("SCANNED ISBN:", cleanISBN);
+    setTimeout(() => {
+      onScanned(cleanISBN);
+    }, 300);
+  };
+
   return (
     <View style={styles.container}>
       <CameraView
@@ -36,19 +47,19 @@ export default function ISBNScanner({ onScanned, onCancel }: ISBNScannerProps) {
         onBarcodeScanned={
           scanned
             ? undefined
-            : ({ data }) => {
-                setScanned(true);
-                onScanned(data);
-              }
+            : ({ data }) => handleScan(data)
         }
       />
 
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>Scan book barcode</Text>
 
-        {scanned ? (
-          <Button title="Tap to Scan Again" onPress={() => setScanned(false)} />
-        ) : null}
+        {scanned && (
+          <Button
+            title="Scan Again"
+            onPress={() => setScanned(false)}
+          />
+        )}
 
         <View style={styles.spacer} />
         <Button title="Cancel" onPress={onCancel} />

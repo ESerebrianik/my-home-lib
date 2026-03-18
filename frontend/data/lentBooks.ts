@@ -1,7 +1,7 @@
-import type { Book } from "../context/BooksContext";
+import type { Book } from "../types/books";
 export const lentBooks: Book[] = [
   {
-    id: 4,
+    id: '4',
     title: "Dune",
     author: "Frank Herbert",
     genre: "Science Fiction",

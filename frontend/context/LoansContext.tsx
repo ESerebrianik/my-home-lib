@@ -1,69 +1,30 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
-
-export type UserRole = "owner" | "borrower";
-
-export type AppBook = {
-  id: number;
-  ownerId: string;
-  title: string;
-  author: string;
-  genre: string;
-  year: number;
-  description: string;
-  cover: string;
-  availabilityStatus: "available" | "pending" | "lent";
-};
-
-export type LoanStatus =
-  | "requested"
-  | "approved"
-  | "declined"
-  | "borrowed"
-  | "returned";
-
-export type Loan = {
-  id: string;
-  bookId: number;
-  ownerId: string;
-  borrowerId: string;
-  status: LoanStatus;
-  requestedAt: string;
-  approvedAt?: string;
-  returnedAt?: string;
-};
-
-export type ChatMessage = {
-  id: string;
-  friendId: string;
-  sender: "me" | "friend" | "system";
-  text: string;
-  time: string;
-  bookId?: number;
-  loanId?: string;
-};
+import { useUsers } from "./UsersContext";
+import type { Book } from "../types/books";
+import type { Loan } from "../types/loans";
+import type { ChatMessage } from "../types/messages";
 
 type LoansContextType = {
-  currentUserId: string;
-  books: AppBook[];
+  books: Book[];
   loans: Loan[];
   messages: ChatMessage[];
-  requestBook: (params: { bookId: number; ownerId: string }) => void;
+  requestBook: (params: { bookId: string; ownerId: string }) => void;
   approveLoan: (loanId: string) => void;
   declineLoan: (loanId: string) => void;
   markReturned: (loanId: string) => void;
-  getFriendAvailableBooks: (friendId: string) => AppBook[];
-  getBorrowedBooks: () => AppBook[];
-  getLentBooks: () => AppBook[];
+  getFriendAvailableBooks: (friendId: string) => Book[];
+  getBorrowedBooks: () => Book[];
+  getLentBooks: () => Book[];
   getMessagesForFriend: (friendId: string) => ChatMessage[];
   getLoanById: (loanId?: string) => Loan | undefined;
-  getBookById: (bookId?: number) => AppBook | undefined;
+  getBookById: (bookId?: string) => Book | undefined;
 };
 
 const LoansContext = createContext<LoansContextType | undefined>(undefined);
 
-const initialBooks: AppBook[] = [
+const initialBooks: Book[] = [
   {
-    id: 1,
+    id: "1",
     ownerId: "1",
     title: "The Hobbit",
     author: "J.R.R. Tolkien",
@@ -71,10 +32,10 @@ const initialBooks: AppBook[] = [
     year: 1937,
     description: "Bilbo Baggins goes on an unexpected journey.",
     cover: "https://covers.openlibrary.org/b/isbn/9780345272577-L.jpg",
-    availabilityStatus: "available",
+    status: "available",
   },
   {
-    id: 2,
+    id: "2",
     ownerId: "1",
     title: "1984",
     author: "George Orwell",
@@ -82,10 +43,10 @@ const initialBooks: AppBook[] = [
     year: 1949,
     description: "A novel about surveillance, control, and totalitarianism.",
     cover: "https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg",
-    availabilityStatus: "available",
+    status: "available",
   },
   {
-    id: 3,
+    id: "3",
     ownerId: "2",
     title: "Cracking the Coding Interview",
     author: "Gayle Laakmann McDowell",
@@ -93,32 +54,35 @@ const initialBooks: AppBook[] = [
     year: 2015,
     description: "Programming interview questions and solutions.",
     cover: "https://covers.openlibrary.org/b/isbn/9780984782857-L.jpg",
-    availabilityStatus: "available",
+    status: "available",
   },
 ];
 
 export function LoansProvider({ children }: { children: React.ReactNode }) {
-  const currentUserId = "me";
+  const { currentUserId } = useUsers();
 
-  const [books, setBooks] = useState<AppBook[]>(initialBooks);
+  const [books, setBooks] = useState<Book[]>(initialBooks);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  const getNow = () =>
+    new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const requestBook = ({
     bookId,
     ownerId,
   }: {
-    bookId: number;
+    bookId: string;
     ownerId: string;
   }) => {
     const book = books.find((b) => b.id === bookId);
     if (!book) return;
 
     const loanId = `loan-${Date.now()}`;
-    const now = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const now = getNow();
 
     const newLoan: Loan = {
       id: loanId,
@@ -132,9 +96,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
     setLoans((prev) => [...prev, newLoan]);
 
     setBooks((prev) =>
-      prev.map((b) =>
-        b.id === bookId ? { ...b, availabilityStatus: "pending" } : b
-      )
+      prev.map((b) => (b.id === bookId ? { ...b, status: "pending" } : b))
     );
 
     setMessages((prev) => [
@@ -143,7 +105,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
         id: `msg-${Date.now()}`,
         friendId: ownerId,
         sender: "me",
-        text: `Hi, can I borrow this book from you?`,
+        text: "Hi, can I borrow this book from you?",
         time: now,
         bookId,
         loanId,
@@ -155,32 +117,25 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
     const loan = loans.find((l) => l.id === loanId);
     if (!loan) return;
 
-    const now = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const now = getNow();
 
     setLoans((prev) =>
       prev.map((l) =>
-        l.id === loanId
-          ? { ...l, status: "borrowed", approvedAt: now }
-          : l
+        l.id === loanId ? { ...l, status: "borrowed", approvedAt: now } : l
       )
     );
 
     setBooks((prev) =>
-      prev.map((b) =>
-        b.id === loan.bookId ? { ...b, availabilityStatus: "lent" } : b
-      )
+      prev.map((b) => (b.id === loan.bookId ? { ...b, status: "lent" } : b))
     );
 
     setMessages((prev) => [
       ...prev,
       {
         id: `msg-${Date.now()}`,
-        friendId: loan.ownerId,
+        friendId: loan.borrowerId,
         sender: "system",
-        text: `Borrow request approved.`,
+        text: "Borrow request approved.",
         time: now,
         bookId: loan.bookId,
         loanId,
@@ -192,10 +147,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
     const loan = loans.find((l) => l.id === loanId);
     if (!loan) return;
 
-    const now = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const now = getNow();
 
     setLoans((prev) =>
       prev.map((l) => (l.id === loanId ? { ...l, status: "declined" } : l))
@@ -203,7 +155,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
 
     setBooks((prev) =>
       prev.map((b) =>
-        b.id === loan.bookId ? { ...b, availabilityStatus: "available" } : b
+        b.id === loan.bookId ? { ...b, status: "available" } : b
       )
     );
 
@@ -211,9 +163,9 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       {
         id: `msg-${Date.now()}`,
-        friendId: loan.ownerId,
+        friendId: loan.borrowerId,
         sender: "system",
-        text: `Borrow request declined.`,
+        text: "Borrow request declined.",
         time: now,
         bookId: loan.bookId,
         loanId,
@@ -225,10 +177,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
     const loan = loans.find((l) => l.id === loanId);
     if (!loan) return;
 
-    const now = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const now = getNow();
 
     setLoans((prev) =>
       prev.map((l) =>
@@ -238,7 +187,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
 
     setBooks((prev) =>
       prev.map((b) =>
-        b.id === loan.bookId ? { ...b, availabilityStatus: "available" } : b
+        b.id === loan.bookId ? { ...b, status: "available" } : b
       )
     );
 
@@ -246,9 +195,10 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       {
         id: `msg-${Date.now()}`,
-        friendId: loan.ownerId,
+        friendId:
+          currentUserId === loan.ownerId ? loan.borrowerId : loan.ownerId,
         sender: "system",
-        text: `Book marked as returned.`,
+        text: "Book marked as returned.",
         time: now,
         bookId: loan.bookId,
         loanId,
@@ -258,8 +208,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
 
   const getFriendAvailableBooks = (friendId: string) =>
     books.filter(
-      (book) =>
-        book.ownerId === friendId && book.availabilityStatus === "available"
+      (book) => book.ownerId === friendId && book.status === "available"
     );
 
   const getBorrowedBooks = () => {
@@ -275,7 +224,9 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
 
   const getLentBooks = () => {
     const lentLoanBookIds = loans
-      .filter((loan) => loan.ownerId === currentUserId && loan.status === "borrowed")
+      .filter(
+        (loan) => loan.ownerId === currentUserId && loan.status === "borrowed"
+      )
       .map((loan) => loan.bookId);
 
     return books.filter((book) => lentLoanBookIds.includes(book.id));
@@ -287,12 +238,11 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
   const getLoanById = (loanId?: string) =>
     loans.find((loan) => loan.id === loanId);
 
-  const getBookById = (bookId?: number) =>
+  const getBookById = (bookId?: string) =>
     books.find((book) => book.id === bookId);
 
   const value = useMemo(
     () => ({
-      currentUserId,
       books,
       loans,
       messages,
@@ -307,7 +257,7 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
       getLoanById,
       getBookById,
     }),
-    [books, loans, messages]
+    [books, loans, messages, currentUserId]
   );
 
   return (

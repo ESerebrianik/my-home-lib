@@ -13,23 +13,23 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useBooks } from "../../context/BooksContext";
+import { useUsers } from "../../context/UsersContext";
+import { useLoans } from "../../context/LoansContext";
 
 export default function ChatDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [messageText, setMessageText] = useState("");
   const flatListRef = useRef<FlatList<any>>(null);
 
+  const { currentUserId, users } = useUsers();
   const {
-    currentUserId,
-    users,
     getMessagesForFriend,
     getLoanById,
     getBookById,
     approveLoan,
     declineLoan,
     markReturned,
-  } = useBooks();
+  } = useLoans();
 
   const friend = users.find((item) => item.id === id);
   const messages = getMessagesForFriend(id ?? "");
@@ -76,8 +76,6 @@ export default function ChatDetailsScreen() {
           <View style={styles.iconButton} />
         </View>
 
-     
-
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -90,8 +88,8 @@ export default function ChatDetailsScreen() {
             const loan = getLoanById(item.loanId);
             const book = getBookById(item.bookId);
 
-            const isSystem = item.senderId === "system";
-            const isMe = item.senderId === currentUserId;
+            const isSystem = item.sender === "system";
+            const isMe = item.sender === "me";
             const isOwnerOfBook = loan?.ownerId === currentUserId;
             const isBorrower = loan?.borrowerId === currentUserId;
 

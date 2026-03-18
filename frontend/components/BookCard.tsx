@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 
-import type { Book } from "../context/BooksContext";
+import type { Book } from "../types/books";
 
 type BookCardProps = {
   book: Book;

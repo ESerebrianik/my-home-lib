@@ -7,11 +7,16 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { FriendList } from "../../components/FriendList";
+import { useUsers } from "../../context/UsersContext";
 import { useBooks } from "../../context/BooksContext";
+import { useLoans } from "../../context/LoansContext";
 
 export default function FriendsScreen() {
   const [search, setSearch] = useState("");
-  const { users, currentUserId, books, loans } = useBooks();
+
+  const { users, currentUserId } = useUsers();
+  const { books } = useBooks();
+  const { loans } = useLoans();
 
   const friends = useMemo(() => {
     return users

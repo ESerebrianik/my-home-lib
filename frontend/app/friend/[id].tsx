@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TextInput,
@@ -11,10 +12,12 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import BookList from "../../components/BookList";
 
+import BookList from "../../components/BookList";
 import { useUsers } from "../../context/UsersContext";
 import { useLoans } from "../../context/LoansContext";
+import { fetchBooksByUser } from "../../api/books";
+import { mapApiBookToBook } from "../../mappers/mapApiBookToBook";
 
 import type { Book } from "../../types/books";
 
@@ -22,32 +25,57 @@ export default function FriendLibraryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [search, setSearch] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const { users } = useUsers();
-  const { getFriendAvailableBooks, requestBook } = useLoans();
+  const { requestBook } = useLoans();
 
   const friend = users.find((item) => item.id === id);
 
-  const books = getFriendAvailableBooks(id ?? "");
+  useEffect(() => {
+    if (!id) return;
+
+    setIsLoading(true);
+
+    fetchBooksByUser(id, "library")
+      .then((data) => {
+        setBooks(data.map(mapApiBookToBook));
+      })
+      .catch((err) => {
+        console.error("FAILED TO FETCH FRIEND LIBRARY:", err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [id]);
 
   const filteredBooks = useMemo(() => {
-    return books.filter((book) =>
-      book.title.toLowerCase().includes(search.trim().toLowerCase())
+    const query = search.trim().toLowerCase();
+
+    return books.filter(
+      (book) =>
+        book.title.toLowerCase().includes(query) ||
+        book.author.toLowerCase().includes(query)
     );
   }, [books, search]);
 
-  const handleRequestBook = (book: Book) => {
+  const handleRequestBook = async (book: Book) => {
     if (!id) return;
 
-    requestBook({
-      bookId: book.id,
-      ownerId: id,
-    });
+    try {
+      await requestBook({
+        bookId: book.id,
+        ownerId: id,
+      });
 
-    router.push({
-      pathname: "/chat/[id]",
-      params: { id },
-    });
+      router.push({
+        pathname: "/chat/[id]",
+        params: { id },
+      });
+    } catch (err) {
+      console.error("FAILED TO REQUEST BOOK:", err);
+    }
   };
 
   const handleOpenMessage = () => {
@@ -102,12 +130,18 @@ export default function FriendLibraryScreen() {
       </View>
 
       <View style={styles.listContainer}>
-        <BookList
-          books={filteredBooks}
-          isLoading={false}
-          showRequest={true}
-          onRequest={handleRequestBook}
-        />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" />
+          </View>
+        ) : (
+          <BookList
+            books={filteredBooks}
+            isLoading={false}
+            showRequest
+            onRequest={handleRequestBook}
+          />
+        )}
       </View>
 
       <Modal
@@ -171,6 +205,10 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flex: 1,
+  },
+  loadingContainer: {
+    paddingTop: 40,
+    alignItems: "center",
   },
   overlay: {
     flex: 1,

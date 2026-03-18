@@ -1,54 +1,74 @@
-import { useMemo, useState } from "react";
-import {
-  View,
-  StyleSheet,
-  TextInput,
-} from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { View, StyleSheet, TextInput } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
+
 import { FriendList } from "../../components/FriendList";
 import { useUsers } from "../../context/UsersContext";
-import { useBooks } from "../../context/BooksContext";
 import { useLoans } from "../../context/LoansContext";
+import { fetchBooksByUser } from "../../api/books";
+
+type FriendCountMap = Record<string, number>;
 
 export default function FriendsScreen() {
   const [search, setSearch] = useState("");
+  const [libraryCounts, setLibraryCounts] = useState<FriendCountMap>({});
 
   const { users, currentUserId } = useUsers();
-  const { books } = useBooks();
   const { loans } = useLoans();
 
-  const friends = useMemo(() => {
-    return users
-      .filter((user) => user.id !== currentUserId)
-      .map((user) => {
-        const lentCount = loans.filter(
-          (loan) => loan.ownerId === user.id && loan.status === "borrowed"
-        ).length;
+  const otherUsers = useMemo(
+    () => users.filter((user) => user.id !== currentUserId),
+    [users, currentUserId]
+  );
 
-        const borrowedCount = loans.filter(
-          (loan) => loan.borrowerId === user.id && loan.status === "borrowed"
-        ).length;
+  useEffect(() => {
+    if (otherUsers.length === 0) return;
 
-        let subtitle = "";
-
-        if (lentCount > 0) {
-          subtitle = `${lentCount} book${lentCount > 1 ? "s" : ""} lent`;
-        } else if (borrowedCount > 0) {
-          subtitle = `${borrowedCount} book${borrowedCount > 1 ? "s" : ""} borrowed`;
-        } else {
-          const booksCount = books.filter((book) => book.ownerId === user.id).length;
-          subtitle = `${booksCount} book${booksCount !== 1 ? "s" : ""} in library`;
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          avatar: user.avatar,
-          subtitle,
-        };
+    Promise.all(
+      otherUsers.map(async (user) => {
+        const books = await fetchBooksByUser(user.id, "library");
+        return [user.id, books.length] as const;
+      })
+    )
+      .then((results) => {
+        const counts = Object.fromEntries(results);
+        setLibraryCounts(counts);
+      })
+      .catch((err) => {
+        console.error("FAILED TO FETCH FRIEND LIBRARY COUNTS:", err);
       });
-  }, [users, currentUserId, books, loans]);
+  }, [otherUsers]);
+
+  const friends = useMemo(() => {
+    return otherUsers.map((user) => {
+      const lentCount = loans.filter(
+        (loan) => loan.ownerId === user.id && loan.status === "borrowed"
+      ).length;
+
+      const borrowedCount = loans.filter(
+        (loan) => loan.borrowerId === user.id && loan.status === "borrowed"
+      ).length;
+
+      let subtitle = "";
+
+      if (lentCount > 0) {
+        subtitle = `${lentCount} book${lentCount > 1 ? "s" : ""} lent`;
+      } else if (borrowedCount > 0) {
+        subtitle = `${borrowedCount} book${borrowedCount > 1 ? "s" : ""} borrowed`;
+      } else {
+        const booksCount = libraryCounts[user.id] ?? 0;
+        subtitle = `${booksCount} book${booksCount !== 1 ? "s" : ""} in library`;
+      }
+
+      return {
+        id: user.id,
+        name: user.name,
+        avatar: user.avatar,
+        subtitle,
+      };
+    });
+  }, [otherUsers, loans, libraryCounts]);
 
   const filteredFriends = friends.filter((friend) =>
     friend.name.toLowerCase().includes(search.trim().toLowerCase())
@@ -82,10 +102,7 @@ export default function FriendsScreen() {
         )}
       </View>
 
-      <FriendList
-        friends={filteredFriends}
-        onFriendPress={handleFriendPress}
-      />
+      <FriendList friends={filteredFriends} onFriendPress={handleFriendPress} />
     </View>
   );
 }

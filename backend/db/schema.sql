@@ -1,17 +1,18 @@
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS loans;
-DROP TABLE IF EXISTS books;
-DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS loans CASCADE;
+DROP TABLE IF EXISTS books CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
 
 CREATE TABLE users (
-  user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id SERIAL PRIMARY KEY,
+  username VARCHAR UNIQUE NOT NULL,
   name TEXT NOT NULL,
   avatar_url TEXT
 );
 
 CREATE TABLE books (
-  book_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  book_id SERIAL PRIMARY KEY,
+  owner_id INT REFERENCES users(user_id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   author TEXT NOT NULL,
   genre TEXT,
@@ -26,10 +27,10 @@ CREATE TABLE books (
 );
 
 CREATE TABLE loans (
-  loan_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  book_id UUID REFERENCES books(book_id) ON DELETE CASCADE,
-  owner_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-  borrower_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  loan_id SERIAL PRIMARY KEY,
+  book_id INT REFERENCES books(book_id) ON DELETE CASCADE,
+  owner_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+  borrower_id INT REFERENCES users(user_id) ON DELETE CASCADE,
   status TEXT NOT NULL
     CHECK (status IN ('requested', 'approved', 'declined', 'borrowed', 'returned')),
   requested_at TIMESTAMP DEFAULT NOW(),
@@ -38,12 +39,12 @@ CREATE TABLE loans (
 );
 
 CREATE TABLE messages (
-  message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sender_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-  receiver_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  message_id SERIAL PRIMARY KEY,
+  sender_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+  receiver_id INT REFERENCES users(user_id) ON DELETE CASCADE,
   text TEXT NOT NULL,
-  loan_id UUID REFERENCES loans(loan_id) ON DELETE SET NULL,
-  book_id UUID REFERENCES books(book_id) ON DELETE SET NULL,
+  loan_id INT REFERENCES loans(loan_id) ON DELETE SET NULL,
+  book_id INT REFERENCES books(book_id) ON DELETE SET NULL,
   is_system BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW()
 );

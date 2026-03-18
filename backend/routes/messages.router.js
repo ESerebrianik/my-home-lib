@@ -1,7 +1,10 @@
 const messagesRouter = require("express").Router();
+const {
+  getMessages,
+  postMessage,
+} = require("../controllers/messages.controllers");
 
-messagesRouter.get("/", (req, res) => {
-  res.status(200).send({ msg: "messages route working" });
-});
+messagesRouter.get("/", getMessages);
+messagesRouter.post("/", postMessage);
 
 module.exports = messagesRouter;

@@ -20,16 +20,24 @@ exports.insertMessage = ({
   text,
   loan_id = null,
   book_id = null,
+  is_system = false,
 }) => {
   const queryStr = `
     INSERT INTO messages
-      (sender_id, receiver_id, text, loan_id, book_id)
+      (sender_id, receiver_id, text, loan_id, book_id, is_system)
     VALUES
-      ($1, $2, $3, $4, $5)
+      ($1, $2, $3, $4, $5, $6)
     RETURNING *;
   `;
 
-  const values = [sender_id, receiver_id, text, loan_id, book_id];
+  const values = [
+    sender_id,
+    receiver_id,
+    text,
+    loan_id,
+    book_id,
+    is_system,
+  ];
 
   return db.query(queryStr, values).then(({ rows }) => rows[0]);
 };

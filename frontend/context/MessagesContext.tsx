@@ -1,50 +1,41 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { fetchMessages, postMessage } from "../api/messages";
 import { useUsers } from "./UsersContext";
-
-export type AppMessage = {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  text: string;
-  time: string;
-  loanId?: string;
-  bookId?: string;
-};
+import type { AppMessage } from "../types/messages";
+import { mapApiMessageToMessage } from "../mappers/mapApiMessageToMessage";
 
 type MessagesContextType = {
   messages: AppMessage[];
   getMessagesForFriend: (friendId: string) => AppMessage[];
+  refreshMessagesForFriend: (friendId: string) => Promise<void>;
   sendMessage: (params: {
     receiverId: string;
     text: string;
     loanId?: string;
     bookId?: string;
+    isSystem?: boolean;
   }) => Promise<void>;
-  refreshMessagesForFriend: (friendId: string) => Promise<void>;
 };
 
-const MessagesContext = createContext<MessagesContextType | undefined>(undefined);
+const MessagesContext = createContext<MessagesContextType | undefined>(
+  undefined
+);
 
-export function MessagesProvider({ children }: { children: React.ReactNode }) {
+export function MessagesProvider({ children }: { children: ReactNode }) {
   const { currentUserId } = useUsers();
   const [messages, setMessages] = useState<AppMessage[]>([]);
-
-  const mapApiMessage = (message: any): AppMessage => ({
-    id: String(message.message_id),
-    senderId: String(message.sender_id),
-    receiverId: String(message.receiver_id),
-    text: message.text,
-    time: message.created_at || "",
-    loanId: message.loan_id ? String(message.loan_id) : undefined,
-    bookId: message.book_id ? String(message.book_id) : undefined,
-  });
 
   const refreshMessagesForFriend = async (friendId: string) => {
     if (!currentUserId || !friendId) return;
 
     const data = await fetchMessages(currentUserId, friendId);
-    const mapped = data.map(mapApiMessage);
+    const mapped = data.map(mapApiMessageToMessage);
 
     setMessages((prev) => {
       const otherMessages = prev.filter(
@@ -64,11 +55,13 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     text,
     loanId,
     bookId,
+    isSystem = false,
   }: {
     receiverId: string;
     text: string;
     loanId?: string;
     bookId?: string;
+    isSystem?: boolean;
   }) => {
     if (!currentUserId || !text.trim()) return;
 
@@ -78,16 +71,18 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       text: text.trim(),
       loan_id: loanId ?? null,
       book_id: bookId ?? null,
+      is_system: isSystem,
     });
 
-    const mapped = mapApiMessage(message);
+    const mapped = mapApiMessageToMessage(message);
     setMessages((prev) => [...prev, mapped]);
   };
 
   const getMessagesForFriend = (friendId: string) =>
     messages.filter(
       (message) =>
-        (message.senderId === currentUserId && message.receiverId === friendId) ||
+        (message.senderId === currentUserId &&
+          message.receiverId === friendId) ||
         (message.senderId === friendId && message.receiverId === currentUserId)
     );
 
@@ -95,8 +90,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     () => ({
       messages,
       getMessagesForFriend,
-      sendMessage,
       refreshMessagesForFriend,
+      sendMessage,
     }),
     [messages, currentUserId]
   );

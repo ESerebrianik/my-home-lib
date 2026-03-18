@@ -9,3 +9,14 @@ export type ChatMessage = {
   bookId?: string;
   loanId?: string;
 };
+
+export type AppMessage = {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  text: string;
+  time: string;
+  loanId?: string;
+  bookId?: string;
+  isSystem?: boolean;
+};

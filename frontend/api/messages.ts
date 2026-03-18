@@ -1,9 +1,11 @@
 import { API_URL } from "./client";
 
 export const fetchMessages = async (user1: string, user2: string) => {
-  const res = await fetch(
-    `${API_URL}/messages?user1=${encodeURIComponent(user1)}&user2=${encodeURIComponent(user2)}`
-  );
+  const url = `${API_URL}/messages?user1=${encodeURIComponent(
+    user1
+  )}&user2=${encodeURIComponent(user2)}`;
+
+  const res = await fetch(url);
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -20,6 +22,7 @@ export const postMessage = async (payload: {
   text: string;
   loan_id?: string | null;
   book_id?: string | null;
+  is_system?: boolean;
 }) => {
   const res = await fetch(`${API_URL}/messages`, {
     method: "POST",

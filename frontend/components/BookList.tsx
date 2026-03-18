@@ -2,30 +2,26 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
-import type { Book } from "../context/BooksContext";
+import type { Book, CollectionType } from "../types/books";
 import BookCard from "./BookCard";
-
-type LibraryItem = { type: "add"; id: string } | ({ type: "book" } & Book);
 
 type BookListProps = {
   books: Book[];
   isLoading: boolean;
-
   showDelete?: boolean;
   showSwap?: boolean;
   showRequest?: boolean;
-
   onRequest?: (book: Book) => void;
   onDelete?: (book: Book) => void;
   onSwap?: (book: Book) => void;
-  addToCollection?: "library" | "wishlist" | "borrowed" | "lent";
+  addToCollection?: CollectionType;
   showAddTile?: boolean;
   layout?: "grid" | "carousel";
 };
@@ -39,6 +35,7 @@ export default function BookList({
   onRequest,
   onDelete,
   onSwap,
+  addToCollection,
   showAddTile = false,
   layout = "grid",
 }: BookListProps) {
@@ -61,83 +58,85 @@ export default function BookList({
     );
   }
 
-  const data: LibraryItem[] = showAddTile
-    ? [
-        { type: "add", id: "add-tile" },
-        ...books.map((book) => ({ ...book, type: "book" as const })),
-      ]
-    : books.map((book) => ({ ...book, type: "book" as const }));
-
-  const renderItem = ({ item }: { item: LibraryItem }) => {
-    if (item.type === "add") {
-      return (
-        <Pressable
-          style={layout === "carousel" ? styles.carouselAddCard : styles.gridCard}
-          onPress={() => router.push("/add-book")}
-        >
-          <View style={styles.addTile}>
-            <Ionicons name="add" size={26} color="#fff" />
-          </View>
-        </Pressable>
-      );
+  const handleAddPress = () => {
+    if (addToCollection) {
+      router.push({
+        pathname: "/add-book",
+        params: { collection: addToCollection },
+      });
+      return;
     }
 
-    return (
-      <View
-        style={layout === "carousel" ? styles.carouselCard : styles.gridCard}
-      >
-        <BookCard
-          book={item}
-          showDelete={showDelete}
-          showSwap={showSwap}
-          showRequest={showRequest}
-          onRequest={onRequest}
-          onDelete={onDelete}
-          onSwap={onSwap}
-        />
-      </View>
-    );
+    router.push("/add-book");
   };
+
+  const renderAddTile = () => (
+    <Pressable
+      key="add-tile"
+      style={layout === "carousel" ? styles.carouselAddCard : styles.gridCard}
+      onPress={handleAddPress}
+    >
+      <View style={styles.addTile}>
+        <Ionicons name="add" size={26} color="#fff" />
+      </View>
+    </Pressable>
+  );
+
+  const renderBookCard = (book: Book) => (
+    <View
+      key={book.id}
+      style={layout === "carousel" ? styles.carouselCard : styles.gridCard}
+    >
+      <BookCard
+        book={book}
+        showDelete={showDelete}
+        showSwap={showSwap}
+        showRequest={showRequest}
+        onRequest={onRequest}
+        onDelete={onDelete}
+        onSwap={onSwap}
+      />
+    </View>
+  );
 
   if (layout === "carousel") {
     return (
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id.toString()}
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.carouselContainer}
-        renderItem={renderItem}
-      />
+        contentContainerStyle={styles.carouselContent}
+      >
+        {showAddTile && renderAddTile()}
+        {books.map(renderBookCard)}
+      </ScrollView>
     );
   }
 
   return (
-    <FlatList
-      data={data}
-      keyExtractor={(item) => item.id.toString()}
-      numColumns={2}
-      columnWrapperStyle={styles.row}
-      contentContainerStyle={styles.gridContainer}
-      showsVerticalScrollIndicator={false}
-      renderItem={renderItem}
-    />
+    <View style={styles.gridContainer}>
+      <View style={styles.gridRow}>
+        {showAddTile ? renderAddTile() : null}
+        {books.map(renderBookCard)}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   gridContainer: {
     paddingVertical: 10,
+    paddingHorizontal: 16,
   },
 
-  carouselContainer: {
+  gridRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  carouselContent: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-  },
-
-  row: {
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
   },
 
   gridCard: {
@@ -147,19 +146,24 @@ const styles = StyleSheet.create({
 
   carouselCard: {
     width: 160,
-    height: 220,
     marginRight: 12,
   },
 
   addTile: {
-  width: 56,
-  height: 56,
-  backgroundColor: "black",
-  borderRadius: 28,
-  justifyContent: "center",
-  alignItems: "center",
-  alignSelf: "center",
-  marginTop: 80,
+    width: 56,
+    height: 56,
+    backgroundColor: "#000",
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    marginTop: 80,
+  },
+
+  carouselAddCard: {
+    width: 70,
+    marginRight: 20,
+    justifyContent: "flex-start",
   },
 
   stateContainer: {
@@ -172,12 +176,6 @@ const styles = StyleSheet.create({
   stateText: {
     marginTop: 12,
     fontSize: 16,
+    color: "#111",
   },
-
-  carouselAddCard: {
-  width: 70,
-  marginRight: 20,
-  justifyContent: "flex-start",
-  color: "white",
-},
 });

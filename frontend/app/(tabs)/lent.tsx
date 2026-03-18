@@ -2,11 +2,14 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Alert, StyleSheet, TextInput, View } from "react-native";
 import BookList from "../../components/BookList";
-import { useBooks, type Book } from "../../context/BooksContext";
+import { useLoans } from "../../context/LoansContext";
+import type { Book } from "../../types/books";
 
 export default function LentScreen() {
-  const { lentBooks, deleteBook } = useBooks();
+  const { getLentBooks } = useLoans();
   const [search, setSearch] = useState("");
+
+  const lentBooks = getLentBooks();
 
   const filteredBooks = lentBooks.filter((book) => {
     const query = search.trim().toLowerCase();
@@ -16,10 +19,6 @@ export default function LentScreen() {
       book.author.toLowerCase().includes(query)
     );
   });
-
-  const handleDeleteBook = (book: Book) => {
-    deleteBook("lent", book.id);
-  };
 
   const handleLendBook = (book: Book) => {
     Alert.alert("Lend book", `You selected "${book.title}" to lend.`);
@@ -49,11 +48,8 @@ export default function LentScreen() {
       <BookList
         books={filteredBooks}
         isLoading={false}
-        showDelete
         showSwap
-        onDelete={handleDeleteBook}
         onSwap={handleLendBook}
-        showAddTile
       />
     </View>
   );

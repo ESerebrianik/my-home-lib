@@ -2,7 +2,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Alert, StyleSheet, TextInput, View } from "react-native";
 import BookList from "../../components/BookList";
-import { useBooks, type Book } from "../../context/BooksContext";
+import { useBooks } from "../../context/BooksContext";
+import type { Book } from "../../types/books";
 
 export default function WishlistScreen() {
   const { wishlistBooks, deleteBook } = useBooks();
@@ -22,7 +23,7 @@ export default function WishlistScreen() {
   };
 
   const handleLendBook = (book: Book) => {
-    Alert.alert("Lend book", `You selected "${book.title}" to lend.`);
+    Alert.alert("Wishlist", `You selected "${book.title}".`);
   };
 
   return (
@@ -54,6 +55,7 @@ export default function WishlistScreen() {
         onDelete={handleDeleteBook}
         onSwap={handleLendBook}
         showAddTile
+        addToCollection="wishlist"
       />
     </View>
   );

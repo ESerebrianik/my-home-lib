@@ -1,17 +1,18 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useUsers } from "./UsersContext";
+import { useBooks } from "./BooksContext";
 import type { Book } from "../types/books";
 import type { Loan } from "../types/loans";
 import type { ChatMessage } from "../types/messages";
+import { fetchLoans, patchLoanStatus, postLoan } from "../api/loans";
 
 type LoansContextType = {
-  books: Book[];
   loans: Loan[];
   messages: ChatMessage[];
-  requestBook: (params: { bookId: string; ownerId: string }) => void;
-  approveLoan: (loanId: string) => void;
-  declineLoan: (loanId: string) => void;
-  markReturned: (loanId: string) => void;
+  requestBook: (params: { bookId: string; ownerId: string }) => Promise<void>;
+  approveLoan: (loanId: string) => Promise<void>;
+  declineLoan: (loanId: string) => Promise<void>;
+  markReturned: (loanId: string) => Promise<void>;
   getFriendAvailableBooks: (friendId: string) => Book[];
   getBorrowedBooks: () => Book[];
   getLentBooks: () => Book[];
@@ -22,46 +23,10 @@ type LoansContextType = {
 
 const LoansContext = createContext<LoansContextType | undefined>(undefined);
 
-const initialBooks: Book[] = [
-  {
-    id: "1",
-    ownerId: "1",
-    title: "The Hobbit",
-    author: "J.R.R. Tolkien",
-    genre: "Fantasy",
-    year: 1937,
-    description: "Bilbo Baggins goes on an unexpected journey.",
-    cover: "https://covers.openlibrary.org/b/isbn/9780345272577-L.jpg",
-    status: "available",
-  },
-  {
-    id: "2",
-    ownerId: "1",
-    title: "1984",
-    author: "George Orwell",
-    genre: "Dystopian",
-    year: 1949,
-    description: "A novel about surveillance, control, and totalitarianism.",
-    cover: "https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg",
-    status: "available",
-  },
-  {
-    id: "3",
-    ownerId: "2",
-    title: "Cracking the Coding Interview",
-    author: "Gayle Laakmann McDowell",
-    genre: "Programming",
-    year: 2015,
-    description: "Programming interview questions and solutions.",
-    cover: "https://covers.openlibrary.org/b/isbn/9780984782857-L.jpg",
-    status: "available",
-  },
-];
-
 export function LoansProvider({ children }: { children: React.ReactNode }) {
   const { currentUserId } = useUsers();
+  const { books } = useBooks();
 
-  const [books, setBooks] = useState<Book[]>(initialBooks);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
@@ -71,139 +36,175 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
       minute: "2-digit",
     });
 
-  const requestBook = ({
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    fetchLoans(currentUserId)
+      .then((data) => {
+        const mappedLoans: Loan[] = data.map((loan: any) => ({
+          id: String(loan.loan_id),
+          bookId: String(loan.book_id),
+          ownerId: String(loan.owner_id),
+          borrowerId: String(loan.borrower_id),
+          status: loan.status,
+          requestedAt: loan.requested_at || "",
+          approvedAt: loan.approved_at || undefined,
+          returnedAt: loan.returned_at || undefined,
+        }));
+
+        setLoans(mappedLoans);
+      })
+      .catch((err) => {
+        console.error("FAILED TO FETCH LOANS:", err);
+      });
+  }, [currentUserId]);
+
+  const requestBook = async ({
     bookId,
     ownerId,
   }: {
     bookId: string;
     ownerId: string;
   }) => {
-    const book = books.find((b) => b.id === bookId);
-    if (!book) return;
+    if (!currentUserId) return;
 
-    const loanId = `loan-${Date.now()}`;
     const now = getNow();
 
-    const newLoan: Loan = {
-      id: loanId,
-      bookId,
-      ownerId,
-      borrowerId: currentUserId,
-      status: "requested",
-      requestedAt: now,
-    };
+    try {
+      const loan = await postLoan({
+        book_id: bookId,
+        owner_id: ownerId,
+        borrower_id: currentUserId,
+        status: "requested",
+      });
 
-    setLoans((prev) => [...prev, newLoan]);
+      const mappedLoan: Loan = {
+        id: String(loan.loan_id),
+        bookId: String(loan.book_id),
+        ownerId: String(loan.owner_id),
+        borrowerId: String(loan.borrower_id),
+        status: loan.status,
+        requestedAt: loan.requested_at || now,
+        approvedAt: loan.approved_at || undefined,
+        returnedAt: loan.returned_at || undefined,
+      };
 
-    setBooks((prev) =>
-      prev.map((b) => (b.id === bookId ? { ...b, status: "pending" } : b))
-    );
+      setLoans((prev) => [mappedLoan, ...prev]);
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${Date.now()}`,
-        friendId: ownerId,
-        sender: "me",
-        text: "Hi, can I borrow this book from you?",
-        time: now,
-        bookId,
-        loanId,
-      },
-    ]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          friendId: ownerId,
+          sender: "me",
+          text: "Hi, can I borrow this book from you?",
+          time: now,
+          bookId,
+          loanId: mappedLoan.id,
+        },
+      ]);
+    } catch (err) {
+      console.error("FAILED TO CREATE LOAN:", err);
+      throw err;
+    }
   };
 
-  const approveLoan = (loanId: string) => {
+  const approveLoan = async (loanId: string) => {
     const loan = loans.find((l) => l.id === loanId);
     if (!loan) return;
 
     const now = getNow();
 
-    setLoans((prev) =>
-      prev.map((l) =>
-        l.id === loanId ? { ...l, status: "borrowed", approvedAt: now } : l
-      )
-    );
+    try {
+      await patchLoanStatus(loanId, "borrowed");
 
-    setBooks((prev) =>
-      prev.map((b) => (b.id === loan.bookId ? { ...b, status: "lent" } : b))
-    );
+      setLoans((prev) =>
+        prev.map((l) =>
+          l.id === loanId ? { ...l, status: "borrowed", approvedAt: now } : l
+        )
+      );
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${Date.now()}`,
-        friendId: loan.borrowerId,
-        sender: "system",
-        text: "Borrow request approved.",
-        time: now,
-        bookId: loan.bookId,
-        loanId,
-      },
-    ]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          friendId: loan.borrowerId,
+          sender: "system",
+          text: "Borrow request approved.",
+          time: now,
+          bookId: loan.bookId,
+          loanId,
+        },
+      ]);
+    } catch (err) {
+      console.error("FAILED TO APPROVE LOAN:", err);
+      throw err;
+    }
   };
 
-  const declineLoan = (loanId: string) => {
+  const declineLoan = async (loanId: string) => {
     const loan = loans.find((l) => l.id === loanId);
     if (!loan) return;
 
     const now = getNow();
 
-    setLoans((prev) =>
-      prev.map((l) => (l.id === loanId ? { ...l, status: "declined" } : l))
-    );
+    try {
+      await patchLoanStatus(loanId, "declined");
 
-    setBooks((prev) =>
-      prev.map((b) =>
-        b.id === loan.bookId ? { ...b, status: "available" } : b
-      )
-    );
+      setLoans((prev) =>
+        prev.map((l) => (l.id === loanId ? { ...l, status: "declined" } : l))
+      );
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${Date.now()}`,
-        friendId: loan.borrowerId,
-        sender: "system",
-        text: "Borrow request declined.",
-        time: now,
-        bookId: loan.bookId,
-        loanId,
-      },
-    ]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          friendId: loan.borrowerId,
+          sender: "system",
+          text: "Borrow request declined.",
+          time: now,
+          bookId: loan.bookId,
+          loanId,
+        },
+      ]);
+    } catch (err) {
+      console.error("FAILED TO DECLINE LOAN:", err);
+      throw err;
+    }
   };
 
-  const markReturned = (loanId: string) => {
+  const markReturned = async (loanId: string) => {
     const loan = loans.find((l) => l.id === loanId);
     if (!loan) return;
 
     const now = getNow();
 
-    setLoans((prev) =>
-      prev.map((l) =>
-        l.id === loanId ? { ...l, status: "returned", returnedAt: now } : l
-      )
-    );
+    try {
+      await patchLoanStatus(loanId, "returned");
 
-    setBooks((prev) =>
-      prev.map((b) =>
-        b.id === loan.bookId ? { ...b, status: "available" } : b
-      )
-    );
+      setLoans((prev) =>
+        prev.map((l) =>
+          l.id === loanId ? { ...l, status: "returned", returnedAt: now } : l
+        )
+      );
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${Date.now()}`,
-        friendId:
-          currentUserId === loan.ownerId ? loan.borrowerId : loan.ownerId,
-        sender: "system",
-        text: "Book marked as returned.",
-        time: now,
-        bookId: loan.bookId,
-        loanId,
-      },
-    ]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}`,
+          friendId:
+            currentUserId === loan.ownerId ? loan.borrowerId : loan.ownerId,
+          sender: "system",
+          text: "Book marked as returned.",
+          time: now,
+          bookId: loan.bookId,
+          loanId,
+        },
+      ]);
+    } catch (err) {
+      console.error("FAILED TO RETURN LOAN:", err);
+      throw err;
+    }
   };
 
   const getFriendAvailableBooks = (friendId: string) =>
@@ -243,7 +244,6 @@ export function LoansProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => ({
-      books,
       loans,
       messages,
       requestBook,

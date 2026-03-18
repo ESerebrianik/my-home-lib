@@ -2,28 +2,26 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Alert, StyleSheet, TextInput, View } from "react-native";
 import BookList from "../../components/BookList";
-import { useBooks, type Book } from "../../context/BooksContext";
+import { useLoans } from "../../context/LoansContext";
+import type { Book } from "../../types/books";
 
 export default function BorrowedScreen() {
-  const { borrowedBooks, deleteBook } = useBooks();
+  const { getBorrowedBooks } = useLoans();
   const [search, setSearch] = useState("");
+
+  const borrowedBooks = getBorrowedBooks();
 
   const filteredBooks = borrowedBooks.filter((book) => {
     const query = search.trim().toLowerCase();
 
     return (
-      book.cover &&
-      (book.title.toLowerCase().includes(query) ||
-        book.author.toLowerCase().includes(query))
+      book.title.toLowerCase().includes(query) ||
+      book.author.toLowerCase().includes(query)
     );
   });
 
-  const handleDeleteBook = (book: Book) => {
-    deleteBook("borrowed", book.id);
-  };
-
   const handleLendBook = (book: Book) => {
-    Alert.alert("Lend book", `You selected "${book.title}" to lend.`);
+    Alert.alert("Borrowed book", `You selected "${book.title}".`);
   };
 
   return (
@@ -50,11 +48,8 @@ export default function BorrowedScreen() {
       <BookList
         books={filteredBooks}
         isLoading={false}
-        showDelete
         showSwap
-        onDelete={handleDeleteBook}
         onSwap={handleLendBook}
-        showAddTile
       />
     </View>
   );

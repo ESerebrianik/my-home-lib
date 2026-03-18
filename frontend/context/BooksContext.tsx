@@ -6,11 +6,8 @@ import {
   useState,
   useEffect,
 } from "react";
-import { borrowedBooks as mockBorrowedBooks } from "../data/borrowedBooks";
-import { lentBooks as mockLentBooks } from "../data/lentBooks";
 import { fetchBooksByUser, postBook } from "../api/books";
-
-import type { Book, BookStatus, NewBook, CollectionType } from "../types/books";
+import type { Book, NewBook, CollectionType } from "../types/books";
 import { mapApiBookToBook } from "../mappers/mapApiBookToBook";
 import { useUsers } from "./UsersContext";
 
@@ -18,8 +15,6 @@ type BooksContextType = {
   books: Book[];
   libraryBooks: Book[];
   wishlistBooks: Book[];
-  borrowedBooks: Book[];
-  lentBooks: Book[];
 
   addBook: (collection: CollectionType, book: NewBook) => Promise<void>;
   deleteBook: (collection: CollectionType, id: string) => void;
@@ -30,49 +25,11 @@ type BooksContextType = {
 
 const BooksContext = createContext<BooksContextType | undefined>(undefined);
 
-const normalizeBooks = (
-  books: {
-    id?: number | string;
-    title: string;
-    author: string;
-    genre: string;
-    year: number;
-    cover?: string;
-    description: string;
-  }[],
-  ownerId: string,
-  status: BookStatus
-): Book[] =>
-  books.map((book, index) => ({
-    ...book,
-    id: String(book.id || index + 1),
-    ownerId,
-    status,
-  }));
-
-const initialManualBorrowedBooks: Book[] = normalizeBooks(
-  mockBorrowedBooks,
-  "u2",
-  "lent"
-);
-
-const initialManualLentBooks: Book[] = normalizeBooks(
-  mockLentBooks,
-  "u1",
-  "lent"
-);
-
 export function BooksProvider({ children }: { children: ReactNode }) {
   const { currentUserId } = useUsers();
 
   const [books, setBooks] = useState<Book[]>([]);
   const [wishlistBooks, setWishlistBooks] = useState<Book[]>([]);
-  const [manualBorrowedBooks, setManualBorrowedBooks] = useState<Book[]>(
-    initialManualBorrowedBooks
-  );
-  const [manualLentBooks, setManualLentBooks] = useState<Book[]>(
-    initialManualLentBooks
-  );
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -100,8 +57,6 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     );
 
   const libraryBooks = getMyAvailableBooks();
-  const borrowedBooks = manualBorrowedBooks;
-  const lentBooks = manualLentBooks;
 
   const addBook = async (collection: CollectionType, book: NewBook) => {
     if (!currentUserId) return;
@@ -153,37 +108,23 @@ export function BooksProvider({ children }: { children: ReactNode }) {
           currentBooks.filter((book) => book.id !== id)
         );
         break;
-      case "borrowed":
-        setManualBorrowedBooks((currentBooks) =>
-          currentBooks.filter((book) => book.id !== id)
-        );
-        break;
-      case "lent":
-        setManualLentBooks((currentBooks) =>
-          currentBooks.filter((book) => book.id !== id)
-        );
-        break;
     }
   };
 
   const getBookById = (bookId?: string) =>
-    [...books, ...wishlistBooks, ...borrowedBooks, ...lentBooks].find(
-      (book) => book.id === bookId
-    );
+    [...books, ...wishlistBooks].find((book) => book.id === bookId);
 
   const value = useMemo(
     () => ({
       books,
       libraryBooks,
       wishlistBooks,
-      borrowedBooks,
-      lentBooks,
       addBook,
       deleteBook,
       getBookById,
       getMyAvailableBooks,
     }),
-    [books, libraryBooks, wishlistBooks, borrowedBooks, lentBooks]
+    [books, libraryBooks, wishlistBooks]
   );
 
   return (

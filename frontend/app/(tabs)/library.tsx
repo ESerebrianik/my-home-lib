@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -9,43 +9,48 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import BookList from "../../components/BookList";
-import { useBooks, type Book } from "../../context/BooksContext";
+import { useBooks } from "../../context/BooksContext";
+import { useLoans } from "../../context/LoansContext";
+import type { Book } from "../../types/books";
 
 export default function Library() {
-  const { libraryBooks, borrowedBooks, lentBooks, wishlistBooks, deleteBook } =
-    useBooks();
-  const [search, setSearch] = useState("");
+  const { libraryBooks, wishlistBooks, deleteBook } = useBooks();
+  const { getBorrowedBooks, getLentBooks } = useLoans();
 
+  const [search, setSearch] = useState("");
   const query = search.trim().toLowerCase();
 
-  const availableBooks = libraryBooks.filter((book) => {
-    return (
-      book.title.toLowerCase().includes(query) ||
-      book.author.toLowerCase().includes(query)
-    );
-  });
+  const borrowedBooks = getBorrowedBooks();
+  const lentBooks = getLentBooks();
 
-  const filteredLentBooks = lentBooks.filter((book) => {
-    return (
-      book.title.toLowerCase().includes(query) ||
-      book.author.toLowerCase().includes(query)
+  const filterBooks = (books: Book[]) =>
+    books.filter(
+      (book) =>
+        book.title.toLowerCase().includes(query) ||
+        book.author.toLowerCase().includes(query)
     );
-  });
 
-  const filteredBorrowedBooks = borrowedBooks.filter((book) => {
-    return (
-      book.title.toLowerCase().includes(query) ||
-      book.author.toLowerCase().includes(query)
-    );
-  });
+  const availableBooks = useMemo(
+    () => filterBooks(libraryBooks),
+    [libraryBooks, query]
+  );
 
-  const filteredWishlistBooks = wishlistBooks.filter((book) => {
-    return (
-      book.title.toLowerCase().includes(query) ||
-      book.author.toLowerCase().includes(query)
-    );
-  });
+  const filteredWishlistBooks = useMemo(
+    () => filterBooks(wishlistBooks),
+    [wishlistBooks, query]
+  );
+
+  const filteredLentBooks = useMemo(
+    () => filterBooks(lentBooks),
+    [lentBooks, query]
+  );
+
+  const filteredBorrowedBooks = useMemo(
+    () => filterBooks(borrowedBooks),
+    [borrowedBooks, query]
+  );
 
   const handleDeleteBook = (book: Book) => {
     deleteBook("library", book.id);
@@ -106,7 +111,11 @@ export default function Library() {
           <Text style={styles.seeAll}>See all</Text>
         </Pressable>
       </View>
-      <BookList books={filteredLentBooks} isLoading={false} layout="carousel" />
+      <BookList
+        books={filteredLentBooks}
+        isLoading={false}
+        layout="carousel"
+      />
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Borrowed</Text>

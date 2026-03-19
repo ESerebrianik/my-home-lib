@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Modal,
-  Pressable,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -15,18 +16,41 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import BookList from "../../components/BookList";
 import { useUsers } from "../../context/UsersContext";
-import { useLoans } from "../../context/LoansContext";
 import { useMessages } from "../../context/MessagesContext";
+import { useLoans } from "../../context/LoansContext";
 import { fetchBooksByUser } from "../../api/books";
+import { fetchLoans } from "../../api/loans";
 import { mapApiBookToBook } from "../../mappers/mapApiBookToBook";
 
 import type { Book } from "../../types/books";
+import type { Loan } from "../../types/loans";
+
+type ApiLoan = {
+  loan_id: string | number;
+  book_id: string | number;
+  owner_id: string | number;
+  borrower_id: string | number;
+  status: string;
+  requested_at?: string;
+  approved_at?: string;
+  returned_at?: string;
+  title?: string;
+  author?: string;
+  genre?: string;
+  year?: number | string;
+  cover_url?: string;
+  description?: string;
+  availability_status?: string;
+};
 
 export default function FriendLibraryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+
   const [search, setSearch] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
-  const [books, setBooks] = useState<Book[]>([]);
+  const [libraryBooks, setLibraryBooks] = useState<Book[]>([]);
+  const [wishlistBooks, setWishlistBooks] = useState<Book[]>([]);
+  const [friendLoans, setFriendLoans] = useState<Loan[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const { users } = useUsers();
@@ -38,38 +62,95 @@ export default function FriendLibraryScreen() {
   useEffect(() => {
     if (!id) return;
 
-    setIsLoading(true);
+    const loadFriendData = async () => {
+      try {
+        setIsLoading(true);
 
-    fetchBooksByUser(id, "library")
-      .then((data) => {
-        setBooks(data.map(mapApiBookToBook));
-      })
-      .catch((err) => {
+        const [libraryData, wishlistData, loansData] = await Promise.all([
+          fetchBooksByUser(id, "library"),
+          fetchBooksByUser(id, "wishlist"),
+          fetchLoans(id),
+        ]);
+
+        setLibraryBooks(libraryData.map(mapApiBookToBook));
+        setWishlistBooks(wishlistData.map(mapApiBookToBook));
+
+        const mappedLoans: Loan[] = (loansData as ApiLoan[]).map((loan) => ({
+          id: String(loan.loan_id),
+          bookId: String(loan.book_id),
+          ownerId: String(loan.owner_id),
+          borrowerId: String(loan.borrower_id),
+          status: loan.status as Loan["status"],
+          requestedAt: loan.requested_at || "",
+          approvedAt: loan.approved_at || undefined,
+          returnedAt: loan.returned_at || undefined,
+          book: loan.title
+            ? {
+                id: String(loan.book_id),
+                title: loan.title,
+                author: loan.author || "",
+                genre: loan.genre || "Unknown",
+                year:
+                  typeof loan.year === "number"
+                    ? loan.year
+                    : Number(loan.year) || new Date().getFullYear(),
+                cover: loan.cover_url?.replace("http://", "https://") || "",
+                description: loan.description || "",
+                ownerId: String(loan.owner_id),
+                status:
+                  (loan.availability_status as Book["status"]) || "available",
+              }
+            : undefined,
+        }));
+
+        setFriendLoans(mappedLoans);
+      } catch (err) {
         console.error("FAILED TO FETCH FRIEND LIBRARY:", err);
-      })
-      .finally(() => {
+      } finally {
         setIsLoading(false);
-      });
+      }
+    };
+
+    loadFriendData();
   }, [id]);
 
-  const filteredBooks = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const query = search.trim().toLowerCase();
 
-    return books.filter(
+  const filterBooks = (books: Book[]) =>
+    books.filter(
       (book) =>
         book.title.toLowerCase().includes(query) ||
         book.author.toLowerCase().includes(query)
     );
-  }, [books, search]);
 
-  /**
-   * Что изменилось:
-   * 1. создаём loan
-   * 2. получаем loanId из backend
-   * 3. сразу создаём message в чат
-   * 4. обновляем messages для этого друга
-   * 5. только потом переходим в чат
-   */
+  const availableLibraryBooks = useMemo(
+    () => filterBooks(libraryBooks.filter((book) => book.status === "available")),
+    [libraryBooks, query]
+  );
+
+  const filteredWishlistBooks = useMemo(
+    () => filterBooks(wishlistBooks),
+    [wishlistBooks, query]
+  );
+
+  const friendLentBooks = useMemo(() => {
+    const lent = friendLoans
+      .filter((loan) => loan.ownerId === id && loan.status === "borrowed")
+      .map((loan) => loan.book)
+      .filter(Boolean) as Book[];
+
+    return filterBooks(lent);
+  }, [friendLoans, id, query]);
+
+  const friendBorrowedBooks = useMemo(() => {
+    const borrowed = friendLoans
+      .filter((loan) => loan.borrowerId === id && loan.status === "borrowed")
+      .map((loan) => loan.book)
+      .filter(Boolean) as Book[];
+
+    return filterBooks(borrowed);
+  }, [friendLoans, id, query]);
+
   const handleRequestBook = async (book: Book) => {
     if (!id) return;
 
@@ -113,7 +194,10 @@ export default function FriendLibraryScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.iconButton}
+        >
           <Ionicons name="chevron-back" size={32} color="#111" />
         </TouchableOpacity>
 
@@ -150,20 +234,55 @@ export default function FriendLibraryScreen() {
         )}
       </View>
 
-      <View style={styles.listContainer}>
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>My Books</Text>
           </View>
-        ) : (
           <BookList
-            books={filteredBooks}
+            books={availableLibraryBooks}
             isLoading={false}
             showRequest
             onRequest={handleRequestBook}
+            layout="carousel"
           />
-        )}
-      </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Wishlist</Text>
+          </View>
+          <BookList
+            books={filteredWishlistBooks}
+            isLoading={false}
+            layout="carousel"
+          />
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Lent</Text>
+          </View>
+          <BookList
+            books={friendLentBooks}
+            isLoading={false}
+            layout="carousel"
+          />
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Borrowed</Text>
+          </View>
+          <BookList
+            books={friendBorrowedBooks}
+            isLoading={false}
+            layout="carousel"
+          />
+        </ScrollView>
+      )}
 
       <Modal
         visible={menuVisible}
@@ -173,7 +292,10 @@ export default function FriendLibraryScreen() {
       >
         <Pressable style={styles.overlay} onPress={() => setMenuVisible(false)}>
           <View style={styles.menu}>
-            <TouchableOpacity style={styles.menuItem} onPress={handleOpenMessage}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleOpenMessage}
+            >
               <Text style={styles.menuText}>Message</Text>
             </TouchableOpacity>
           </View>
@@ -224,8 +346,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#111",
   },
-  listContainer: {
+  content: {
     flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 24,
+  },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111",
   },
   loadingContainer: {
     paddingTop: 40,

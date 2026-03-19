@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Button, StyleSheet, Text, View } from "react-native";
 
 type ISBNScannerProps = {
@@ -7,9 +7,15 @@ type ISBNScannerProps = {
   onCancel: () => void;
 };
 
-export default function ISBNScanner({ onScanned, onCancel }: ISBNScannerProps) {
+export default function ISBNScanner({
+  onScanned,
+  onCancel,
+}: ISBNScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+
+  // защита от повторного срабатывания
+  const hasHandledScanRef = useRef(false);
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -26,15 +32,19 @@ export default function ISBNScanner({ onScanned, onCancel }: ISBNScannerProps) {
     );
   }
 
-  const handleScan = (data: string) => {
-    if (scanned) return;
+  const handleBarcodeScanned = ({ data }: { data: string }) => {
+    if (hasHandledScanRef.current) return;
 
+    hasHandledScanRef.current = true;
     setScanned(true);
-    const cleanISBN = data.replace(/[^0-9Xx]/g, "");
-    console.log("SCANNED ISBN:", cleanISBN);
-    setTimeout(() => {
-      onScanned(cleanISBN);
-    }, 300);
+
+    console.log("SCANNED ISBN:", data);
+    onScanned(data);
+  };
+
+  const handleScanAgain = () => {
+    hasHandledScanRef.current = false;
+    setScanned(false);
   };
 
   return (
@@ -44,22 +54,15 @@ export default function ISBNScanner({ onScanned, onCancel }: ISBNScannerProps) {
         barcodeScannerSettings={{
           barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"],
         }}
-        onBarcodeScanned={
-          scanned
-            ? undefined
-            : ({ data }) => handleScan(data)
-        }
+        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
       />
 
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>Scan book barcode</Text>
 
-        {scanned && (
-          <Button
-            title="Scan Again"
-            onPress={() => setScanned(false)}
-          />
-        )}
+        {scanned ? (
+          <Button title="Tap to Scan Again" onPress={handleScanAgain} />
+        ) : null}
 
         <View style={styles.spacer} />
         <Button title="Cancel" onPress={onCancel} />

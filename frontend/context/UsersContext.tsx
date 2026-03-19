@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { fetchUsers } from "../api/books";
+import { fetchUsers } from "../api/users";
 import type { User } from "../types/users";
 import { mapApiUserToUser } from "../mappers/mapApiUserToUser";
 

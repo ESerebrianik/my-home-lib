@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
 import CoverCamera from "../components/CoverCamera";
 import ISBNScanner from "../components/ISBNScanner";
 import { useBooks } from "../context/BooksContext";
@@ -66,6 +67,9 @@ export default function AddBookScreen() {
   const [searchResults, setSearchResults] = useState<GoogleBookItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  // Защита от многократной обработки одного и того же скана
+  const isHandlingScanRef = useRef(false);
+
   const screenTitle =
     targetCollection === "library"
       ? "Add Book to My Books"
@@ -95,6 +99,7 @@ export default function AddBookScreen() {
     setSearchResults([]);
     setShowCamera(false);
     setShowScanner(false);
+    isHandlingScanRef.current = false;
   };
 
   const autofillForm = (book: GoogleBookItem) => {
@@ -106,7 +111,11 @@ export default function AddBookScreen() {
     setAuthor(info.authors?.join(", ") || "");
     setGenre(info.categories?.[0] || "");
     setDescription(info.description || "");
-    setCover(info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || "");
+    setCover(
+      info.imageLinks?.thumbnail?.replace("http://", "https://") ||
+        info.imageLinks?.smallThumbnail?.replace("http://", "https://") ||
+        ""
+    );
 
     const publishedDate = info.publishedDate || "";
     const parsedYear = publishedDate.slice(0, 4);
@@ -148,69 +157,88 @@ export default function AddBookScreen() {
   };
 
   const searchByISBN = async (isbn: string) => {
-    try {
-      setIsSearching(true);
+  try {
+    setIsSearching(true);
 
-      const cleanISBN = isbn.replace(/[^0-9Xx]/g, "");
+    const cleanISBN = isbn.replace(/[^0-9Xx]/g, "");
 
-      const response = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(
-          cleanISBN
-        )}`
+    const response = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(
+        cleanISBN
+      )}`
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch ISBN result");
+    }
+
+    const data = await response.json();
+    const firstMatch = data.items?.[0];
+
+    if (!firstMatch) {
+      Alert.alert(
+        "No match found",
+        `No Google Books result found for ISBN ${cleanISBN}.`
       );
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch ISBN result");
-      }
+    autofillForm(firstMatch);
+  } catch (error) {
+    console.error("ISBN search error:", error);
+    Alert.alert("Lookup failed", "Could not fetch book data from ISBN.");
+  } finally {
+    setIsSearching(false);
+    setShowScanner(false);
+  }
+};
 
-      const data = await response.json();
-      const firstMatch = data.items?.[0];
+  /**
+   * Главное изменение:
+   * обрабатываем scan только один раз,
+   * даже если камера успела несколько раз подряд прислать один и тот же ISBN
+   */
+  const handleScanned = async (isbn: string) => {
+    if (isHandlingScanRef.current) return;
 
-      if (!firstMatch) {
-        Alert.alert(
-          "No match found",
-          `No Google Books result found for ISBN ${cleanISBN}.`
-        );
-        return;
-      }
+    isHandlingScanRef.current = true;
 
-      autofillForm(firstMatch);
-      Alert.alert("Book found", "Form auto-filled from barcode scan.");
-    } catch (error) {
-      console.error("ISBN search error:", error);
-      Alert.alert("Lookup failed", "Could not fetch book data from ISBN.");
+    try {
+      await searchByISBN(isbn);
     } finally {
-      setIsSearching(false);
-      setShowScanner(false);
+      // Сбрасываем блокировку только после закрытия сканера
+      setTimeout(() => {
+        isHandlingScanRef.current = false;
+      }, 300);
     }
   };
 
   const handleAddBook = async () => {
-  if (!title.trim() || !author.trim()) {
-    Alert.alert(
-      "Missing information",
-      "Please enter at least a title and author."
-    );
-    return;
-  }
+    if (!title.trim() || !author.trim()) {
+      Alert.alert(
+        "Missing information",
+        "Please enter at least a title and author."
+      );
+      return;
+    }
 
-  try {
-    await addBook(targetCollection, {
-      title: title.trim(),
-      author: author.trim(),
-      genre: genre.trim() || "Unknown",
-      year: Number(year) || new Date().getFullYear(),
-      cover: cover.trim(),
-      description: description.trim() || "No description provided.",
-    });
+    try {
+      await addBook(targetCollection, {
+        title: title.trim(),
+        author: author.trim(),
+        genre: genre.trim() || "Unknown",
+        year: Number(year) || new Date().getFullYear(),
+        cover: cover.trim(),
+        description: description.trim() || "No description provided.",
+      });
 
-    resetForm();
-    router.back();
-  } catch (error) {
-    console.error("FAILED TO ADD BOOK:", error);
-    Alert.alert("Save failed", "Could not save the book right now.");
-  }
-};
+      resetForm();
+      router.back();
+    } catch (error) {
+      console.error("FAILED TO ADD BOOK:", error);
+      Alert.alert("Save failed", "Could not save the book right now.");
+    }
+  };
 
   if (showCamera) {
     return (
@@ -227,8 +255,11 @@ export default function AddBookScreen() {
   if (showScanner) {
     return (
       <ISBNScanner
-        onScanned={searchByISBN}
-        onCancel={() => setShowScanner(false)}
+        onScanned={handleScanned}
+        onCancel={() => {
+          isHandlingScanRef.current = false;
+          setShowScanner(false);
+        }}
       />
     );
   }
@@ -277,7 +308,13 @@ export default function AddBookScreen() {
           )}
         </View>
 
-        <Pressable style={styles.scanButton} onPress={() => setShowScanner(true)}>
+        <Pressable
+          style={styles.scanButton}
+          onPress={() => {
+            isHandlingScanRef.current = false;
+            setShowScanner(true);
+          }}
+        >
           <Text style={styles.scanButtonText}>Scan Barcode</Text>
         </Pressable>
 
@@ -362,7 +399,10 @@ export default function AddBookScreen() {
           </View>
         )}
 
-        <Pressable style={styles.cameraButton} onPress={() => setShowCamera(true)}>
+        <Pressable
+          style={styles.cameraButton}
+          onPress={() => setShowCamera(true)}
+        >
           <Text style={styles.cameraButtonText}>Take cover photo</Text>
         </Pressable>
 

@@ -50,33 +50,75 @@ exports.insertLoan = ({
   return db.query(queryStr, values).then(({ rows }) => rows[0]);
 };
 
-exports.updateLoanStatus = (loan_id, status) => {
-  let queryStr = "";
+exports.updateLoanStatus = async (loan_id, status) => {
+  const client = await db.connect();
 
-  if (status === "borrowed") {
-    queryStr = `
-      UPDATE loans
-      SET status = $2,
-          approved_at = NOW()
-      WHERE loan_id = $1
-      RETURNING *;
-    `;
-  } else if (status === "returned") {
-    queryStr = `
-      UPDATE loans
-      SET status = $2,
-          returned_at = NOW()
-      WHERE loan_id = $1
-      RETURNING *;
-    `;
-  } else {
-    queryStr = `
-      UPDATE loans
-      SET status = $2
-      WHERE loan_id = $1
-      RETURNING *;
-    `;
+  try {
+    await client.query("BEGIN");
+
+    let loanQuery = "";
+
+    if (status === "borrowed") {
+      loanQuery = `
+        UPDATE loans
+        SET status = $2,
+            approved_at = NOW()
+        WHERE loan_id = $1
+        RETURNING *;
+      `;
+    } else if (status === "returned") {
+      loanQuery = `
+        UPDATE loans
+        SET status = $2,
+            returned_at = NOW()
+        WHERE loan_id = $1
+        RETURNING *;
+      `;
+    } else {
+      loanQuery = `
+        UPDATE loans
+        SET status = $2
+        WHERE loan_id = $1
+        RETURNING *;
+      `;
+    }
+
+    const { rows } = await client.query(loanQuery, [loan_id, status]);
+    const updatedLoan = rows[0];
+
+    if (!updatedLoan) {
+      await client.query("ROLLBACK");
+      return Promise.reject({ status: 404, msg: "Loan not found" });
+    }
+
+    if (status === "borrowed") {
+      await client.query(
+        `
+          UPDATE books
+          SET availability_status = 'lent'
+          WHERE book_id = $1;
+        `,
+        [updatedLoan.book_id]
+      );
+    }
+
+    if (status === "returned" || status === "declined") {
+      await client.query(
+        `
+          UPDATE books
+          SET availability_status = 'available'
+          WHERE book_id = $1;
+        `,
+        [updatedLoan.book_id]
+      );
+    }
+
+    await client.query("COMMIT");
+    return updatedLoan;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
-
-  return db.query(queryStr, [loan_id, status]).then(({ rows }) => rows[0]);
 };

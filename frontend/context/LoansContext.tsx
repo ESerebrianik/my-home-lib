@@ -8,6 +8,7 @@ import {
 } from "react";
 import { fetchLoans, patchLoanStatus, postLoan } from "../api/loans";
 import { useUsers } from "./UsersContext";
+import { useBooks } from "./BooksContext";
 
 import type { Book } from "../types/books";
 import type { Loan } from "../types/loans";
@@ -52,6 +53,7 @@ const mapApiLoanToLoan = (loan: any): Loan => ({
 
 export function LoansProvider({ children }: { children: ReactNode }) {
   const { currentUserId } = useUsers();
+  const { refreshBooks } = useBooks();
   const [loans, setLoans] = useState<Loan[]>([]);
 
   const refreshLoans = async () => {
@@ -97,6 +99,7 @@ export function LoansProvider({ children }: { children: ReactNode }) {
       });
 
       await refreshLoans();
+      await refreshBooks();
     } catch (err) {
       console.error("FAILED TO CREATE LOAN:", err);
       throw err;
@@ -106,7 +109,7 @@ export function LoansProvider({ children }: { children: ReactNode }) {
   const approveLoan = async (loanId: string) => {
     try {
       await patchLoanStatus(loanId, "borrowed");
-      await refreshLoans();
+      await Promise.all([refreshLoans(), refreshBooks()]);
     } catch (err) {
       console.error("FAILED TO APPROVE LOAN:", err);
       throw err;
@@ -116,7 +119,7 @@ export function LoansProvider({ children }: { children: ReactNode }) {
   const declineLoan = async (loanId: string) => {
     try {
       await patchLoanStatus(loanId, "declined");
-      await refreshLoans();
+      await Promise.all([refreshLoans(), refreshBooks()]);
     } catch (err) {
       console.error("FAILED TO DECLINE LOAN:", err);
       throw err;
@@ -126,14 +129,13 @@ export function LoansProvider({ children }: { children: ReactNode }) {
   const markReturned = async (loanId: string) => {
     try {
       await patchLoanStatus(loanId, "returned");
-      await refreshLoans();
+      await Promise.all([refreshLoans(), refreshBooks()]);
     } catch (err) {
       console.error("FAILED TO MARK RETURNED:", err);
       throw err;
     }
   };
 
-  // Пока можно вернуть пустой массив, потому что friend library у тебя уже грузится отдельным API на экране друга
   const getFriendAvailableBooks = (_friendId: string) => [];
 
   const getBorrowedBooks = () =>

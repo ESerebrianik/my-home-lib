@@ -1,3 +1,5 @@
+import type { Book } from "./books";
+
 export type LoanStatus =
   | "requested"
   | "approved"
@@ -14,4 +16,5 @@ export type Loan = {
   requestedAt: string;
   approvedAt?: string;
   returnedAt?: string;
+  book?: Book;
 };

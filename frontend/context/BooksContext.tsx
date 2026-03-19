@@ -1,10 +1,10 @@
 import {
   createContext,
-  ReactNode,
+  type ReactNode,
   useContext,
+  useEffect,
   useMemo,
   useState,
-  useEffect,
 } from "react";
 import { fetchBooksByUser, postBook } from "../api/books";
 import type { Book, NewBook, CollectionType } from "../types/books";
@@ -21,6 +21,7 @@ type BooksContextType = {
 
   getBookById: (bookId?: string) => Book | undefined;
   getMyAvailableBooks: () => Book[];
+  refreshBooks: () => Promise<void>;
 };
 
 const BooksContext = createContext<BooksContextType | undefined>(undefined);
@@ -28,34 +29,45 @@ const BooksContext = createContext<BooksContextType | undefined>(undefined);
 export function BooksProvider({ children }: { children: ReactNode }) {
   const { currentUserId } = useUsers();
 
+  // books = все library-книги текущего пользователя из backend
   const [books, setBooks] = useState<Book[]>([]);
   const [wishlistBooks, setWishlistBooks] = useState<Book[]>([]);
 
+  const refreshBooks = async () => {
+    if (!currentUserId) {
+      setBooks([]);
+      setWishlistBooks([]);
+      return;
+    }
+
+    try {
+      const [libraryData, wishlistData] = await Promise.all([
+        fetchBooksByUser(currentUserId, "library"),
+        fetchBooksByUser(currentUserId, "wishlist"),
+      ]);
+
+      const mappedLibraryBooks = libraryData.map(mapApiBookToBook);
+      const mappedWishlistBooks = wishlistData.map(mapApiBookToBook);
+
+      console.log("FETCHED LIBRARY BOOKS:", mappedLibraryBooks);
+      console.log("FETCHED WISHLIST BOOKS:", mappedWishlistBooks);
+
+      setBooks(mappedLibraryBooks);
+      setWishlistBooks(mappedWishlistBooks);
+    } catch (err) {
+      console.error("FAILED TO REFRESH BOOKS:", err);
+    }
+  };
+
   useEffect(() => {
-    if (!currentUserId) return;
-
-    fetchBooksByUser(currentUserId, "library")
-      .then((data) => {
-        setBooks(data.map(mapApiBookToBook));
-      })
-      .catch((err) => {
-        console.error("FAILED TO FETCH LIBRARY BOOKS:", err);
-      });
-
-    fetchBooksByUser(currentUserId, "wishlist")
-      .then((data) => {
-        setWishlistBooks(data.map(mapApiBookToBook));
-      })
-      .catch((err) => {
-        console.error("FAILED TO FETCH WISHLIST BOOKS:", err);
-      });
+    refreshBooks();
   }, [currentUserId]);
 
+  // ✅ в My Books показываем только доступные книги
   const getMyAvailableBooks = () =>
-    books.filter(
-      (book) => book.ownerId === currentUserId && book.status === "available"
-    );
+    books.filter((book) => book.status === "available");
 
+  // ✅ libraryBooks теперь = только available
   const libraryBooks = getMyAvailableBooks();
 
   const addBook = async (collection: CollectionType, book: NewBook) => {
@@ -79,17 +91,10 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     };
 
     try {
+      console.log("POST BOOK PAYLOAD:", payload);
+
       await postBook(payload);
-
-      if (collection === "library") {
-        const libraryData = await fetchBooksByUser(currentUserId, "library");
-        setBooks(libraryData.map(mapApiBookToBook));
-      }
-
-      if (collection === "wishlist") {
-        const wishlistData = await fetchBooksByUser(currentUserId, "wishlist");
-        setWishlistBooks(wishlistData.map(mapApiBookToBook));
-      }
+      await refreshBooks();
     } catch (err) {
       console.error("FAILED TO ADD BOOK:", err);
       throw err;
@@ -123,6 +128,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       deleteBook,
       getBookById,
       getMyAvailableBooks,
+      refreshBooks,
     }),
     [books, libraryBooks, wishlistBooks]
   );

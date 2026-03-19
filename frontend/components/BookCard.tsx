@@ -32,8 +32,9 @@ export default function BookCard({
   onSwap,
 }: BookCardProps) {
   const [modalVisible, setModalVisible] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-  const hasCover = !!book.cover?.trim();
+  const hasValidCover = !!book.cover && !imageError;
 
   const handleRequest = () => {
     onRequest?.(book);
@@ -53,8 +54,16 @@ export default function BookCard({
   return (
     <>
       <Pressable style={styles.card} onPress={() => setModalVisible(true)}>
-        {hasCover ? (
-          <Image source={{ uri: book.cover }} style={styles.image} resizeMode="cover" />
+        {hasValidCover ? (
+          <Image
+            source={{ uri: book.cover }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={() => {
+              console.log("IMAGE LOAD ERROR:", book.title, book.cover);
+              setImageError(true);
+            }}
+          />
         ) : (
           <View style={[styles.image, styles.fallbackCover]}>
             <Text style={styles.fallbackTitle} numberOfLines={4}>
@@ -78,8 +87,16 @@ export default function BookCard({
               <Text style={styles.title}>{book.title}</Text>
               <Text style={styles.author}>{book.author}</Text>
 
-              {hasCover ? (
-                <Image source={{ uri: book.cover }} style={styles.modalImage} />
+              {hasValidCover ? (
+                <Image
+                  source={{ uri: book.cover }}
+                  style={styles.modalImage}
+                  resizeMode="cover"
+                  onError={() => {
+                    console.log("MODAL IMAGE LOAD ERROR:", book.title, book.cover);
+                    setImageError(true);
+                  }}
+                />
               ) : (
                 <View style={[styles.modalImage, styles.fallbackCover]}>
                   <Text style={styles.modalFallbackTitle} numberOfLines={5}>
@@ -135,13 +152,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
   },
-
   image: {
     width: "100%",
     height: 220,
     borderRadius: 8,
-},
-
+    backgroundColor: "#E5E5E5",
+  },
   fallbackCover: {
     backgroundColor: "#4a4a4a",
     justifyContent: "center",
@@ -149,7 +165,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 16,
   },
-
   fallbackTitle: {
     color: "#fff",
     fontSize: 18,
@@ -157,7 +172,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
   },
-
   modalFallbackTitle: {
     color: "#fff",
     fontSize: 22,
@@ -166,7 +180,6 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     paddingHorizontal: 12,
   },
-
   modalBackground: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -174,7 +187,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
   },
-
   modalCard: {
     width: "85%",
     backgroundColor: "#fff",
@@ -182,19 +194,16 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: "80%",
   },
-
   closeButton: {
     position: "absolute",
     right: 15,
     top: 15,
     zIndex: 10,
   },
-
   closeText: {
     fontSize: 22,
     fontWeight: "bold",
   },
-
   title: {
     fontSize: 18,
     fontWeight: "bold",
@@ -202,34 +211,30 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingTop: 10,
   },
-
   author: {
     textAlign: "center",
     color: "#666",
     marginBottom: 10,
   },
-
   modalImage: {
     width: "50%",
     height: 220,
     borderRadius: 10,
     marginVertical: 10,
     alignSelf: "center",
+    backgroundColor: "#E5E5E5",
   },
-
   meta: {
     textAlign: "center",
     fontSize: 14,
     color: "#888",
     marginBottom: 10,
   },
-
   description: {
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
   },
-
   iconRow: {
     flexDirection: "row",
     justifyContent: "center",

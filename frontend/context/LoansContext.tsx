@@ -8,7 +8,6 @@ import {
 } from "react";
 import { fetchLoans, patchLoanStatus, postLoan } from "../api/loans";
 import { useUsers } from "./UsersContext";
-import { useBooks } from "./BooksContext";
 
 import type { Book } from "../types/books";
 import type { Loan } from "../types/loans";
@@ -29,9 +28,6 @@ type LoansContextType = {
 
 const LoansContext = createContext<LoansContextType | undefined>(undefined);
 
-/**
- * mapper из ответа API в frontend Loan
- */
 const mapApiLoanToLoan = (loan: any): Loan => ({
   id: String(loan.loan_id),
   bookId: String(loan.book_id),
@@ -41,18 +37,23 @@ const mapApiLoanToLoan = (loan: any): Loan => ({
   requestedAt: loan.requested_at || "",
   approvedAt: loan.approved_at || undefined,
   returnedAt: loan.returned_at || undefined,
+  book: {
+    id: String(loan.book_id),
+    title: loan.title,
+    author: loan.author,
+    genre: loan.genre || "Unknown",
+    year: Number(loan.year) || new Date().getFullYear(),
+    cover: loan.cover_url?.replace("http://", "https://") || "",
+    description: loan.description || "",
+    ownerId: String(loan.owner_id),
+    status: loan.availability_status || "available",
+  },
 });
 
 export function LoansProvider({ children }: { children: ReactNode }) {
   const { currentUserId } = useUsers();
-  const { books } = useBooks();
-
   const [loans, setLoans] = useState<Loan[]>([]);
 
-  /**
-   * Загружаем все займы текущего пользователя с backend.
-   * Это главный источник правды для borrowed/lent/requested.
-   */
   const refreshLoans = async () => {
     if (!currentUserId) {
       setLoans([]);
@@ -70,11 +71,6 @@ export function LoansProvider({ children }: { children: ReactNode }) {
     });
   }, [currentUserId]);
 
-  /**
-   * Создать запрос на займ книги.
-   * После создания не пытаемся руками долго синхронизировать state,
-   * а просто заново подтягиваем loans с backend.
-   */
   const requestBook = async ({
     bookId,
     ownerId,
@@ -84,7 +80,6 @@ export function LoansProvider({ children }: { children: ReactNode }) {
   }) => {
     if (!currentUserId) return;
 
-    // Не даём создать дубликат активного займа по той же книге
     const existingActiveLoan = loans.find(
       (loan) =>
         loan.bookId === bookId &&
@@ -108,11 +103,6 @@ export function LoansProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Одобрить займ.
-   * После PATCH сразу обновляем loans из backend,
-   * чтобы полки borrowed/lent считались уже из актуальных данных.
-   */
   const approveLoan = async (loanId: string) => {
     try {
       await patchLoanStatus(loanId, "borrowed");
@@ -123,9 +113,6 @@ export function LoansProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Отклонить займ.
-   */
   const declineLoan = async (loanId: string) => {
     try {
       await patchLoanStatus(loanId, "declined");
@@ -136,9 +123,6 @@ export function LoansProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Отметить книгу как возвращённую.
-   */
   const markReturned = async (loanId: string) => {
     try {
       await patchLoanStatus(loanId, "returned");
@@ -149,53 +133,31 @@ export function LoansProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Книги друга для friend library:
-   * только его книги и только доступные.
-   *
-   * Важно:
-   * это работает корректно только если в BooksContext реально есть книги нужного пользователя.
-   * Для экрана friend/[id] у тебя уже отдельная загрузка с backend — это ок.
-   */
-  const getFriendAvailableBooks = (friendId: string) =>
-    books.filter(
-      (book) => book.ownerId === friendId && book.status === "available"
-    );
+  // Пока можно вернуть пустой массив, потому что friend library у тебя уже грузится отдельным API на экране друга
+  const getFriendAvailableBooks = (_friendId: string) => [];
 
-  /**
-   * Мои одолженные книги:
-   * те книги, где я borrower и статус займа borrowed.
-   */
-  const getBorrowedBooks = () => {
-    const borrowedBookIds = loans
+  const getBorrowedBooks = () =>
+    loans
       .filter(
         (loan) =>
           loan.borrowerId === currentUserId && loan.status === "borrowed"
       )
-      .map((loan) => loan.bookId);
+      .map((loan) => loan.book)
+      .filter(Boolean) as Book[];
 
-    return books.filter((book) => borrowedBookIds.includes(book.id));
-  };
-
-  /**
-   * Книги, которые я отдал другим:
-   * owner === currentUserId и статус займа borrowed.
-   */
-  const getLentBooks = () => {
-    const lentBookIds = loans
+  const getLentBooks = () =>
+    loans
       .filter(
         (loan) => loan.ownerId === currentUserId && loan.status === "borrowed"
       )
-      .map((loan) => loan.bookId);
-
-    return books.filter((book) => lentBookIds.includes(book.id));
-  };
+      .map((loan) => loan.book)
+      .filter(Boolean) as Book[];
 
   const getLoanById = (loanId?: string) =>
     loans.find((loan) => loan.id === loanId);
 
   const getBookById = (bookId?: string) =>
-    books.find((book) => book.id === bookId);
+    loans.find((loan) => loan.bookId === bookId)?.book;
 
   const value = useMemo(
     () => ({
@@ -211,7 +173,7 @@ export function LoansProvider({ children }: { children: ReactNode }) {
       getLoanById,
       getBookById,
     }),
-    [loans, books, currentUserId]
+    [loans, currentUserId]
   );
 
   return (

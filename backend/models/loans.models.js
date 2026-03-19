@@ -3,19 +3,29 @@ const db = require("../db/connection");
 exports.selectLoans = (user_id) => {
   const values = [];
   let queryStr = `
-    SELECT *
+    SELECT
+      loans.*,
+      books.title,
+      books.author,
+      books.genre,
+      books.year,
+      books.cover_url,
+      books.description,
+      books.collection_type,
+      books.availability_status
     FROM loans
+    JOIN books ON loans.book_id = books.book_id
   `;
 
   if (user_id) {
     queryStr += `
-      WHERE owner_id = $1 OR borrower_id = $1
+      WHERE loans.owner_id = $1 OR loans.borrower_id = $1
     `;
     values.push(user_id);
   }
 
   queryStr += `
-    ORDER BY requested_at DESC;
+    ORDER BY loans.requested_at DESC;
   `;
 
   return db.query(queryStr, values).then(({ rows }) => rows);

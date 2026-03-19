@@ -3,40 +3,27 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import BookList from "../../components/BookList";
-import { useBooks, type Book } from "../../context/BooksContext";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-type CollectionType = "library" | "wishlist" | "lent" | "borrowed";
+import BookList from "../../components/BookList";
+import { useBooks } from "../../context/BooksContext";
+import { useLoans } from "../../context/LoansContext";
+import type { Book, CollectionType } from "../../types/books";
 
 export default function CollectionScreen() {
-  const { type } = useLocalSearchParams<{ type: CollectionType }>();
-  const { libraryBooks, borrowedBooks, lentBooks, wishlistBooks, deleteBook } =
-    useBooks();
-
+  const { type } = useLocalSearchParams<{ type: string }>();
   const [search, setSearch] = useState("");
 
-  const query = search.trim().toLowerCase();
+  const { libraryBooks, wishlistBooks, deleteBook } = useBooks();
+  const { getBorrowedBooks, getLentBooks } = useLoans();
 
-  const collectionTitle = useMemo(() => {
-    switch (type) {
-      case "library":
-        return "My Books";
-      case "wishlist":
-        return "Wishlist";
-      case "lent":
-        return "Lent";
-      case "borrowed":
-        return "Borrowed";
-      default:
-        return "Collection";
-    }
-  }, [type]);
+  const borrowedBooks = getBorrowedBooks();
+  const lentBooks = getLentBooks();
 
   const books = useMemo(() => {
     switch (type) {
@@ -53,44 +40,65 @@ export default function CollectionScreen() {
     }
   }, [type, libraryBooks, wishlistBooks, lentBooks, borrowedBooks]);
 
-  const filteredBooks = books.filter((book) => {
-    return (
-      book.title.toLowerCase().includes(query) ||
-      book.author.toLowerCase().includes(query)
+  const filteredBooks = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return books.filter(
+      (book) =>
+        book.title.toLowerCase().includes(query) ||
+        book.author.toLowerCase().includes(query)
     );
-  });
+  }, [books, search]);
+
+  const title = useMemo(() => {
+    switch (type) {
+      case "library":
+        return "My Books";
+      case "wishlist":
+        return "Wishlist";
+      case "lent":
+        return "Lent";
+      case "borrowed":
+        return "Borrowed";
+      default:
+        return "Collection";
+    }
+  }, [type]);
 
   const handleDeleteBook = (book: Book) => {
     if (type === "library" || type === "wishlist") {
-      deleteBook(type, book.id);
+      deleteBook(type as CollectionType, book.id);
     }
   };
 
-  const showAddButton = type === "library" || type === "wishlist";
-  const showDeleteButton = type === "library" || type === "wishlist";
-
-  const handleAddBook = () => {
-    router.push({
-      pathname: "/add-book",
-      params: { collection: type },
-    });
-  };
+  const showDelete = type === "library" || type === "wishlist";
+  const showAddTile = type === "library" || type === "wishlist";
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={30} color="#111" />
-        </Pressable>
-        <Text style={styles.title}>{collectionTitle}</Text>
-        <View style={styles.headerRightSpace} />
-      </View>
+      <View style={styles.screen}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: 6,
+            },
+          ]}
+        >
+          <Pressable onPress={() => router.back()} style={styles.iconButton}>
+            <Ionicons name="chevron-back" size={34} color="#111" />
+          </Pressable>
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+          <Text style={styles.title}>{title}</Text>
+
+          <View style={styles.iconButton} />
+        </View>
+
         <View style={styles.searchWrapper}>
           <Ionicons name="search-outline" size={18} color="#7A7A7A" />
+
           <TextInput
             placeholder="Search"
             placeholderTextColor="#7A7A7A"
@@ -98,6 +106,7 @@ export default function CollectionScreen() {
             value={search}
             onChangeText={setSearch}
           />
+
           {search.length > 0 && (
             <Ionicons
               name="close-circle"
@@ -108,90 +117,71 @@ export default function CollectionScreen() {
           )}
         </View>
 
-        <BookList
-          books={filteredBooks}
-          isLoading={false}
-          showDelete={showDeleteButton}
-          onDelete={handleDeleteBook}
-          layout="grid"
-        />
-      </ScrollView>
-
-      {showAddButton && (
-        <Pressable style={styles.fab} onPress={handleAddBook}>
-          <Ionicons name="add" size={28} color="#fff" />
-        </Pressable>
-      )}
-    </View>
+        <View style={styles.listContainer}>
+          <BookList
+            books={filteredBooks}
+            isLoading={false}
+            showDelete={showDelete}
+            onDelete={handleDeleteBook}
+            showAddTile={showAddTile}
+            addToCollection={
+              type === "library" || type === "wishlist"
+                ? (type as CollectionType)
+                : undefined
+            }
+          />
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
   screen: {
     flex: 1,
     backgroundColor: "#fff",
   },
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  content: {
-    paddingBottom: 90,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 60,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    marginBottom: 12,
     backgroundColor: "#fff",
   },
-  backButton: {
-    width: 36,
-    justifyContent: "center",
+  iconButton: {
+    width: 44,
+    height: 44,
     alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     flex: 1,
     fontSize: 22,
     fontWeight: "700",
     color: "#111",
-    marginLeft: 8,
-  },
-  headerRightSpace: {
-    width: 36,
+    textAlign: "center",
   },
   searchWrapper: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#E9E9E9",
     borderRadius: 18,
-    paddingHorizontal: 10,
-    height: 38,
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 12,
+    paddingHorizontal: 10,
+    height: 46,
+    marginBottom: 16,
   },
   searchInput: {
     flex: 1,
     marginHorizontal: 8,
-    fontSize: 14,
+    fontSize: 16,
     color: "#111",
   },
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 28,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#3a24ff",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+  listContainer: {
+    flex: 1,
   },
 });

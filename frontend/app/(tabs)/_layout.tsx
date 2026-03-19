@@ -1,7 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { DrawerToggleButton } from "@react-navigation/drawer";
 import { Tabs } from "expo-router";
-import { useBooks } from "../../context/BooksContext";
 import { useUsers } from "../../context/UsersContext";
 import UserAvatar from "../../components/UserAvatar";
 import { useState } from "react";
@@ -11,29 +10,30 @@ export default function TabLayout() {
   const { users, currentUser, setCurrentUserId } = useUsers();
   const [modalVisible, setModalVisible] = useState(false);
 
-  console.log("USERS IN TAB LAYOUT:", users);
-  console.log("CURRENT USER IN TAB LAYOUT:", currentUser);
-
   return (
     <>
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: "#3a24ff",
+          tabBarActiveTintColor: "#111",
           headerLeft: () => <DrawerToggleButton />,
-          headerRight: () =>
-            currentUser ? (
-              <UserAvatar
-                avatar={currentUser.avatar}
-                onPress={() => setModalVisible(true)}
-              />
-            ) : (
-              <Pressable
-                onPress={() => setModalVisible(true)}
-                style={styles.fallbackAvatar}
-              >
-                <Ionicons name="person" size={18} color="#111" />
-              </Pressable>
-            ),
+          headerShadowVisible: false,
+          headerRight: () => (
+            <View style={styles.headerRightContainer}>
+              {currentUser ? (
+                <UserAvatar
+                  avatar={currentUser.avatar}
+                  onPress={() => setModalVisible(true)}
+                />
+              ) : (
+                <Pressable
+                  onPress={() => setModalVisible(true)}
+                  style={styles.fallbackAvatar}
+                >
+                  <Ionicons name="person" size={18} color="#111" />
+                </Pressable>
+              )}
+            </View>
+          ),
         }}
       >
         <Tabs.Screen
@@ -160,5 +160,9 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 16,
     color: "#111",
+  },
+
+  headerRightContainer: {
+    marginRight: 6,
   },
 });

@@ -77,12 +77,15 @@ export default function Library() {
         )}
       </View>
 
-      <View style={styles.sectionHeader}>
+      
+      <Pressable
+        style={styles.sectionHeader}
+        onPress={() => router.push("/collection/library")}
+      >
         <Text style={styles.sectionTitle}>My Books</Text>
-        <Pressable onPress={() => router.push("/collection/library")}>
-          <Text style={styles.seeAll}>See all</Text>
-        </Pressable>
-      </View>
+        <Ionicons name="chevron-forward" size={34} color="#111" />
+      </Pressable>
+      
       <BookList
         books={availableBooks}
         isLoading={false}
@@ -91,12 +94,14 @@ export default function Library() {
         layout="carousel"
       />
 
-      <View style={styles.sectionHeader}>
+      <Pressable
+        style={styles.sectionHeader}
+        onPress={() => router.push("/collection/wishlist")}
+      >
         <Text style={styles.sectionTitle}>Wishlist</Text>
-        <Pressable onPress={() => router.push("/collection/wishlist")}>
-          <Text style={styles.seeAll}>See all</Text>
-        </Pressable>
-      </View>
+        <Ionicons name="chevron-forward" size={34} color="#111" />
+      </Pressable>
+
       <BookList
         books={filteredWishlistBooks}
         isLoading={false}
@@ -105,24 +110,23 @@ export default function Library() {
         layout="carousel"
       />
 
-      <View style={styles.sectionHeader}>
+      <Pressable
+        style={styles.sectionHeader}
+        onPress={() => router.push("/collection/lent")}
+      >
         <Text style={styles.sectionTitle}>Lent</Text>
-        <Pressable onPress={() => router.push("/collection/lent")}>
-          <Text style={styles.seeAll}>See all</Text>
-        </Pressable>
-      </View>
-      <BookList
-        books={filteredLentBooks}
-        isLoading={false}
-        layout="carousel"
-      />
+        <Ionicons name="chevron-forward" size={34} color="#111" />
+      </Pressable>
+      <BookList books={filteredLentBooks} isLoading={false} layout="carousel" />
 
-      <View style={styles.sectionHeader}>
+      
+      <Pressable
+        style={styles.sectionHeader}
+        onPress={() => router.push("/collection/borrowed")}
+      >
         <Text style={styles.sectionTitle}>Borrowed</Text>
-        <Pressable onPress={() => router.push("/collection/borrowed")}>
-          <Text style={styles.seeAll}>See all</Text>
-        </Pressable>
-      </View>
+        <Ionicons name="chevron-forward" size={34} color="#111" />
+      </Pressable>
       <BookList
         books={filteredBorrowedBooks}
         isLoading={false}
@@ -160,19 +164,15 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 16,
     marginBottom: 4,
   },
+
   sectionTitle: {
     fontSize: 22,
     fontWeight: "700",
     color: "#111",
-  },
-  seeAll: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#3a24ff",
-  },
+    marginRight: 6,
+  }, 
 });

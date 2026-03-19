@@ -3,7 +3,9 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -13,23 +15,23 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import UserAvatar from "../../components/UserAvatar";
 import { useUsers } from "../../context/UsersContext";
 import { useLoans } from "../../context/LoansContext";
+import { useMessages } from "../../context/MessagesContext";
 
 export default function ChatDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [messageText, setMessageText] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
   const flatListRef = useRef<FlatList<any>>(null);
 
-  const { currentUserId, users } = useUsers();
-  const {
-    getMessagesForFriend,
-    getLoanById,
-    getBookById,
-    approveLoan,
-    declineLoan,
-    markReturned,
-  } = useLoans();
+  const { currentUserId, currentUser, users, setCurrentUserId } = useUsers();
+  const { getLoanById, getBookById, approveLoan, declineLoan, markReturned } =
+    useLoans();
+  const { getMessagesForFriend, refreshMessagesForFriend, sendMessage } =
+    useMessages();
 
   const friend = users.find((item) => item.id === id);
   const messages = getMessagesForFriend(id ?? "");
@@ -40,6 +42,15 @@ export default function ChatDetailsScreen() {
     });
   };
 
+  // Загружаем сообщения при открытии чата и при смене текущего пользователя
+  useEffect(() => {
+    if (!id) return;
+
+    refreshMessagesForFriend(id).catch((err) => {
+      console.error("FAILED TO REFRESH MESSAGES:", err);
+    });
+  }, [id, currentUserId, refreshMessagesForFriend]);
+
   useEffect(() => {
     scrollToBottom(false);
   }, []);
@@ -48,8 +59,38 @@ export default function ChatDetailsScreen() {
     scrollToBottom(true);
   }, [messages.length]);
 
-  const handleSend = () => {
-    setMessageText("");
+  const handleSend = async () => {
+    if (!id || !messageText.trim()) return;
+
+    try {
+      await sendMessage({
+        receiverId: id,
+        text: messageText,
+      });
+      setMessageText("");
+    } catch (err) {
+      console.error("FAILED TO SEND MESSAGE:", err);
+    }
+  };
+
+  // Главное исправление:
+  // если мы были Anna в чате с John,
+  // и переключаемся на John,
+  // то John должен попасть в чат с Anna, а не в чат с самим собой.
+  const handleSwitchUser = (nextUserId: string) => {
+    if (!id) return;
+
+    const previousUserId = currentUserId;
+
+    setCurrentUserId(nextUserId);
+    setModalVisible(false);
+
+    if (nextUserId !== previousUserId) {
+      router.replace({
+        pathname: "/chat/[id]",
+        params: { id: previousUserId },
+      });
+    }
   };
 
   return (
@@ -73,7 +114,19 @@ export default function ChatDetailsScreen() {
             {friend?.name ?? "Chat"}
           </Text>
 
-          <View style={styles.iconButton} />
+          {currentUser ? (
+            <UserAvatar
+              avatar={currentUser.avatar}
+              onPress={() => setModalVisible(true)}
+            />
+          ) : (
+            <TouchableOpacity
+              onPress={() => setModalVisible(true)}
+              style={styles.fallbackAvatar}
+            >
+              <Ionicons name="person" size={18} color="#111" />
+            </TouchableOpacity>
+          )}
         </View>
 
         <FlatList
@@ -88,8 +141,8 @@ export default function ChatDetailsScreen() {
             const loan = getLoanById(item.loanId);
             const book = getBookById(item.bookId);
 
-            const isSystem = item.sender === "system";
-            const isMe = item.sender === "me";
+            const isSystem = item.isSystem;
+            const isMe = item.senderId === currentUserId;
             const isOwnerOfBook = loan?.ownerId === currentUserId;
             const isBorrower = loan?.borrowerId === currentUserId;
 
@@ -195,6 +248,27 @@ export default function ChatDetailsScreen() {
             </TouchableOpacity>
           </View>
         </SafeAreaView>
+
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <Pressable style={styles.overlay} onPress={() => setModalVisible(false)}>
+            <View style={styles.menu}>
+              {users.map((user) => (
+                <Pressable
+                  key={user.id}
+                  onPress={() => handleSwitchUser(user.id)}
+                  style={styles.menuItem}
+                >
+                  <Text style={styles.menuText}>{user.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -230,6 +304,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111",
     marginHorizontal: 8,
+  },
+  fallbackAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E9E9E9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   messagesContainer: {
     padding: 16,
@@ -367,5 +449,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 12,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  menu: {
+    position: "absolute",
+    top: 80,
+    right: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 10,
+    minWidth: 160,
+  },
+  menuItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  menuText: {
+    fontSize: 16,
+    color: "#111",
   },
 });

@@ -16,7 +16,10 @@ import type { Loan } from "../types/loans";
 type LoansContextType = {
   loans: Loan[];
   refreshLoans: () => Promise<void>;
-  requestBook: (params: { bookId: string; ownerId: string }) => Promise<void>;
+  requestBook: (params: {
+    bookId: string;
+    ownerId: string;
+  }) => Promise<Loan | undefined>;
   approveLoan: (loanId: string) => Promise<void>;
   declineLoan: (loanId: string) => Promise<void>;
   markReturned: (loanId: string) => Promise<void>;
@@ -38,22 +41,25 @@ const mapApiLoanToLoan = (loan: any): Loan => ({
   requestedAt: loan.requested_at || "",
   approvedAt: loan.approved_at || undefined,
   returnedAt: loan.returned_at || undefined,
-  book: {
-    id: String(loan.book_id),
-    title: loan.title,
-    author: loan.author,
-    genre: loan.genre || "Unknown",
-    year: Number(loan.year) || new Date().getFullYear(),
-    cover: loan.cover_url?.replace("http://", "https://") || "",
-    description: loan.description || "",
-    ownerId: String(loan.owner_id),
-    status: loan.availability_status || "available",
-  },
+  book: loan.title
+    ? {
+        id: String(loan.book_id),
+        title: loan.title,
+        author: loan.author,
+        genre: loan.genre || "Unknown",
+        year: Number(loan.year) || new Date().getFullYear(),
+        cover: loan.cover_url?.replace("http://", "https://") || "",
+        description: loan.description || "",
+        ownerId: String(loan.owner_id),
+        status: loan.availability_status || "available",
+      }
+    : undefined,
 });
 
 export function LoansProvider({ children }: { children: ReactNode }) {
   const { currentUserId } = useUsers();
   const { refreshBooks } = useBooks();
+
   const [loans, setLoans] = useState<Loan[]>([]);
 
   const refreshLoans = async () => {
@@ -73,13 +79,18 @@ export function LoansProvider({ children }: { children: ReactNode }) {
     });
   }, [currentUserId]);
 
+  /**
+   * Создаём loan и возвращаем его,
+   * чтобы экран друга мог сразу отправить сообщение в чат
+   * с loanId и bookId.
+   */
   const requestBook = async ({
     bookId,
     ownerId,
   }: {
     bookId: string;
     ownerId: string;
-  }) => {
+  }): Promise<Loan | undefined> => {
     if (!currentUserId) return;
 
     const existingActiveLoan = loans.find(
@@ -88,18 +99,21 @@ export function LoansProvider({ children }: { children: ReactNode }) {
         ["requested", "approved", "borrowed"].includes(loan.status)
     );
 
-    if (existingActiveLoan) return;
+    if (existingActiveLoan) return existingActiveLoan;
 
     try {
-      await postLoan({
+      const createdLoan = await postLoan({
         book_id: bookId,
         owner_id: ownerId,
         borrower_id: currentUserId,
         status: "requested",
       });
 
-      await refreshLoans();
-      await refreshBooks();
+      const mappedCreatedLoan = mapApiLoanToLoan(createdLoan);
+
+      await Promise.all([refreshLoans(), refreshBooks()]);
+
+      return mappedCreatedLoan;
     } catch (err) {
       console.error("FAILED TO CREATE LOAN:", err);
       throw err;

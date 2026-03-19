@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import BookList from "../../components/BookList";
 import { useUsers } from "../../context/UsersContext";
 import { useLoans } from "../../context/LoansContext";
+import { useMessages } from "../../context/MessagesContext";
 import { fetchBooksByUser } from "../../api/books";
 import { mapApiBookToBook } from "../../mappers/mapApiBookToBook";
 
@@ -30,6 +31,7 @@ export default function FriendLibraryScreen() {
 
   const { users } = useUsers();
   const { requestBook } = useLoans();
+  const { sendMessage, refreshMessagesForFriend } = useMessages();
 
   const friend = users.find((item) => item.id === id);
 
@@ -60,14 +62,33 @@ export default function FriendLibraryScreen() {
     );
   }, [books, search]);
 
+  /**
+   * Что изменилось:
+   * 1. создаём loan
+   * 2. получаем loanId из backend
+   * 3. сразу создаём message в чат
+   * 4. обновляем messages для этого друга
+   * 5. только потом переходим в чат
+   */
   const handleRequestBook = async (book: Book) => {
     if (!id) return;
 
     try {
-      await requestBook({
+      const createdLoan = await requestBook({
         bookId: book.id,
         ownerId: id,
       });
+
+      if (createdLoan) {
+        await sendMessage({
+          receiverId: id,
+          text: `Hi, can I borrow "${book.title}" from you?`,
+          loanId: createdLoan.id,
+          bookId: book.id,
+        });
+
+        await refreshMessagesForFriend(id);
+      }
 
       router.push({
         pathname: "/chat/[id]",
